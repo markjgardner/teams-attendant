@@ -241,8 +241,140 @@ class TestCleanup:
 
 
 # ---------------------------------------------------------------------------
-# Chat-only mode (no audio)
+# Transcript source strategy
 # ---------------------------------------------------------------------------
+
+
+def _make_real_config(transcript_source: str = "auto"):
+    """Return a real AppConfig for transcript strategy tests."""
+    from teams_attendant.config import AppConfig
+
+    return AppConfig(
+        transcript_source=transcript_source,
+        azure={
+            "speech": {"key": "k", "region": "r"},
+            "foundry": {"endpoint": "e", "api_key": "a"},
+        },
+    )
+
+
+class TestTranscriptStrategy:
+    """Test _setup_transcript routes to UI or audio based on config."""
+
+    async def test_setup_transcript_auto_ui_succeeds(self) -> None:
+        """auto mode: UI succeeds → audio is NOT called."""
+        config = _make_real_config("auto")
+        orchestrator = MeetingOrchestrator(config)
+        orchestrator._session = _make_session()
+
+        with (
+            patch.object(
+                orchestrator, "_setup_ui_transcript",
+                new_callable=AsyncMock, return_value=True,
+            ) as ui_mock,
+            patch.object(
+                orchestrator, "_setup_audio", new_callable=AsyncMock,
+            ) as audio_mock,
+        ):
+            await orchestrator._setup_transcript()
+
+        ui_mock.assert_awaited_once()
+        audio_mock.assert_not_awaited()
+
+    async def test_setup_transcript_auto_ui_fails_falls_back(self) -> None:
+        """auto mode: UI fails → falls back to audio."""
+        config = _make_real_config("auto")
+        orchestrator = MeetingOrchestrator(config)
+        orchestrator._session = _make_session()
+
+        with (
+            patch.object(
+                orchestrator, "_setup_ui_transcript",
+                new_callable=AsyncMock, return_value=False,
+            ) as ui_mock,
+            patch.object(
+                orchestrator, "_setup_audio", new_callable=AsyncMock,
+            ) as audio_mock,
+        ):
+            await orchestrator._setup_transcript()
+
+        ui_mock.assert_awaited_once()
+        audio_mock.assert_awaited_once()
+
+    async def test_setup_transcript_ui_only(self) -> None:
+        """ui mode: UI succeeds → audio is NOT called."""
+        config = _make_real_config("ui")
+        orchestrator = MeetingOrchestrator(config)
+        orchestrator._session = _make_session()
+
+        with (
+            patch.object(
+                orchestrator, "_setup_ui_transcript",
+                new_callable=AsyncMock, return_value=True,
+            ) as ui_mock,
+            patch.object(
+                orchestrator, "_setup_audio", new_callable=AsyncMock,
+            ) as audio_mock,
+        ):
+            await orchestrator._setup_transcript()
+
+        ui_mock.assert_awaited_once()
+        audio_mock.assert_not_awaited()
+
+    async def test_setup_transcript_ui_only_unavailable(self) -> None:
+        """ui mode: UI fails → no fallback to audio."""
+        config = _make_real_config("ui")
+        orchestrator = MeetingOrchestrator(config)
+        orchestrator._session = _make_session()
+
+        with (
+            patch.object(
+                orchestrator, "_setup_ui_transcript",
+                new_callable=AsyncMock, return_value=False,
+            ) as ui_mock,
+            patch.object(
+                orchestrator, "_setup_audio", new_callable=AsyncMock,
+            ) as audio_mock,
+        ):
+            await orchestrator._setup_transcript()
+
+        ui_mock.assert_awaited_once()
+        audio_mock.assert_not_awaited()
+
+    async def test_setup_transcript_audio_only(self) -> None:
+        """audio mode: skips UI, calls audio directly."""
+        config = _make_real_config("audio")
+        orchestrator = MeetingOrchestrator(config)
+        orchestrator._session = _make_session()
+
+        with (
+            patch.object(
+                orchestrator, "_setup_ui_transcript", new_callable=AsyncMock,
+            ) as ui_mock,
+            patch.object(
+                orchestrator, "_setup_audio", new_callable=AsyncMock,
+            ) as audio_mock,
+        ):
+            await orchestrator._setup_transcript()
+
+        ui_mock.assert_not_awaited()
+        audio_mock.assert_awaited_once()
+
+    async def test_cleanup_stops_transcript_observer(self) -> None:
+        """Cleanup should stop the transcript observer if present."""
+        config = _make_config()
+        orchestrator = MeetingOrchestrator(config)
+
+        transcript_observer = MagicMock()
+        transcript_observer.stop = AsyncMock()
+
+        session = _make_session()
+        session.transcript_observer = transcript_observer
+        orchestrator._session = session
+
+        await orchestrator._cleanup()
+
+        transcript_observer.stop.assert_awaited_once()
 
 
 class TestChatOnlyMode:

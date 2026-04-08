@@ -1,0 +1,18 @@
+azure:
+  speech:
+    key: "your-azure-speech-key"
+    region: "eastus"
+  foundry:
+    endpoint: "https://your-foundry.azure.com"
+    api_key: "your-foundry-api-key"
+    model_deployment: "claude-sonnet"
+
+browser_data_dir: ".browser-data"
+summaries_dir: "summaries"
+default_profile: "balanced"
+
+# Where to get meeting transcripts:
+#   "auto"  - Try Teams live captions first, fall back to audio STT (default)
+#   "ui"    - Only use Teams live captions (no Azure Speech needed)
+#   "audio" - Only use Azure Speech-to-Text (original behavior)
+transcript_source: "auto"

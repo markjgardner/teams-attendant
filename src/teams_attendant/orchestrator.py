@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from teams_attendant.errors import AudioError, BrowserError, LLMError
+
 if TYPE_CHECKING:
     from playwright.async_api import BrowserContext
 
@@ -24,6 +26,7 @@ if TYPE_CHECKING:
     from teams_attendant.browser.chat import ChatObserver
     from teams_attendant.browser.meeting import MeetingController
     from teams_attendant.browser.screen import ScreenCaptureObserver
+    from teams_attendant.browser.transcript import TranscriptObserver
     from teams_attendant.config import AppConfig
     from teams_attendant.utils.events import EventBus
 
@@ -53,6 +56,7 @@ class MeetingSession:
     decision_engine: AgentDecisionEngine | None = None
     screen_observer: ScreenCaptureObserver | None = None
     vision_analyzer: VisionAnalyzer | None = None
+    transcript_observer: TranscriptObserver | None = None
 
 
 class MeetingOrchestrator:
@@ -124,10 +128,14 @@ class MeetingOrchestrator:
             log.info("orchestrator.starting_chat_observer")
             await chat_observer.start()
 
-            log.info("orchestrator.setting_up_audio")
-            await self._setup_audio()
-            audio_available = self._session.transcriber is not None
-            log.info("orchestrator.audio_status", audio_available=audio_available)
+            log.info("orchestrator.setting_up_transcript")
+            await self._setup_transcript()
+            transcript_source = "none"
+            if self._session.transcript_observer is not None:
+                transcript_source = self._session.transcript_observer.source
+            elif self._session.transcriber is not None:
+                transcript_source = "audio"
+            log.info("orchestrator.transcript_status", source=transcript_source)
 
             log.info(
                 "orchestrator.starting_agent",
@@ -146,6 +154,16 @@ class MeetingOrchestrator:
             log.info("orchestrator.interrupted")
         except asyncio.CancelledError:
             log.info("orchestrator.cancelled")
+        except BrowserError as exc:
+            log.error("orchestrator.browser_error", error=str(exc), recoverable=exc.recoverable)
+        except AudioError as exc:
+            log.warning(
+                "orchestrator.audio_error",
+                error=str(exc),
+                detail="Continuing in chat-only mode",
+            )
+        except LLMError as exc:
+            log.error("orchestrator.llm_error", error=str(exc))
         except Exception:
             log.exception("orchestrator.error")
         finally:
@@ -195,6 +213,54 @@ class MeetingOrchestrator:
         log.info("orchestrator.meeting_joined")
 
         return browser_context, controller
+
+    async def _setup_transcript(self) -> None:
+        """Set up the transcript source according to ``transcript_source`` config."""
+        if self._session is None:
+            return
+
+        source = self._config.transcript_source
+
+        if source in ("auto", "ui"):
+            ui_ok = await self._setup_ui_transcript()
+            if ui_ok:
+                log.info("orchestrator.transcript_via_ui")
+                return
+            if source == "ui":
+                log.warning(
+                    "orchestrator.ui_transcript_not_available",
+                    detail="Continuing in chat-only mode",
+                )
+                return
+
+        # source == "audio" or auto fallback
+        log.info("orchestrator.setting_up_audio")
+        await self._setup_audio()
+
+    async def _setup_ui_transcript(self) -> bool:
+        """Try to set up the UI-based transcript observer. Returns True on success."""
+        if self._session is None:
+            return False
+
+        from teams_attendant.browser.transcript import TranscriptObserver
+
+        page = self._session.meeting_controller.page
+        if page is None:
+            log.warning("orchestrator.ui_transcript_no_page")
+            return False
+
+        observer = TranscriptObserver(page=page, event_bus=self._session.event_bus)
+        try:
+            available = await observer.start()
+        except Exception:
+            log.warning("orchestrator.ui_transcript_start_failed", exc_info=True)
+            return False
+
+        if not available:
+            return False
+
+        self._session.transcript_observer = observer
+        return True
 
     async def _setup_audio(self) -> None:
         """Set up audio pipeline (capture, STT, TTS, playback)."""
@@ -449,6 +515,28 @@ class MeetingOrchestrator:
         except Exception:
             log.debug("orchestrator.status_log_failed", exc_info=True)
 
+    async def _generate_meeting_summary(self, session: MeetingSession) -> None:
+        """Generate and save a post-meeting summary if possible."""
+        if session.llm_client is None:
+            return
+
+        from teams_attendant.agent.summarizer import MeetingSummarizer
+
+        log.info("orchestrator.generating_summary")
+        summarizer = MeetingSummarizer(session.llm_client, self._config.summaries_dir)
+        try:
+            summary = await summarizer.generate_summary(session.context)
+            if summary:
+                record = session.context.to_meeting_record()
+                path = await summarizer.save_summary(
+                    summary,
+                    meeting_title=record.get("title", ""),
+                    participants=record.get("participants"),
+                )
+                log.info("orchestrator.summary_saved", path=str(path))
+        except Exception:
+            log.exception("orchestrator.summary_failed")
+
     async def _cleanup(self) -> None:
         """Clean up all resources in reverse order of creation."""
         if self._session is None:
@@ -457,6 +545,9 @@ class MeetingOrchestrator:
         log.info("orchestrator.cleanup_start")
         session = self._session
         self._session = None
+
+        # Generate meeting summary before tearing down components
+        await self._generate_meeting_summary(session)
 
         # Stop decision engine
         if session.decision_engine is not None:
@@ -480,6 +571,14 @@ class MeetingOrchestrator:
                 log.info("orchestrator.cleanup.screen_observer_stopped")
             except Exception:
                 log.warning("orchestrator.cleanup.screen_observer_error", exc_info=True)
+
+        # Stop transcript observer
+        if session.transcript_observer is not None:
+            try:
+                await session.transcript_observer.stop()
+                log.info("orchestrator.cleanup.transcript_observer_stopped")
+            except Exception:
+                log.warning("orchestrator.cleanup.transcript_observer_error", exc_info=True)
 
         # Stop audio components
         if session.transcriber is not None:
@@ -565,5 +664,10 @@ class MeetingOrchestrator:
             "is_screen_sharing": info.is_screen_sharing,
             "agent_responses": agent_responses,
             "audio_enabled": self._session.transcriber is not None,
+            "transcript_source": (
+                self._session.transcript_observer.source
+                if self._session.transcript_observer is not None
+                else ("audio" if self._session.transcriber is not None else "none")
+            ),
             "vision_enabled": self._session.vision_analyzer is not None,
         }

@@ -5,7 +5,7 @@ An AI agent that attends Microsoft Teams meetings on your behalf. It joins under
 ## Features
 
 - **Attend as you** — Uses browser automation to join meetings under your real Teams identity. Other participants see *you*, not a bot.
-- **Listen & understand** — Captures meeting audio and transcribes it in real time using Azure Speech Services with speaker diarization.
+- **Listen & understand** — Reads meeting transcripts from Teams live captions (preferred) or captures audio and transcribes via Azure Speech Services. Automatic fallback when captions aren't available.
 - **Read the room** — Monitors the meeting chat for messages, questions, and mentions.
 - **Speak up** — Responds via voice (text-to-speech routed through a virtual microphone) or chat, depending on context.
 - **See what's shared** — Optionally captures screen-shared content and analyzes it with Claude's vision capabilities.
@@ -35,7 +35,12 @@ graph TB
         screen["Screen Capture"]
     end
 
-    subgraph Audio["Audio Pipeline"]
+    subgraph Transcript["Transcript Source (auto/ui/audio)"]
+        transcriptobs["Transcript Observer\n(DOM scraping)"]
+        fallback["Fallback Strategy"]
+    end
+
+    subgraph Audio["Audio Pipeline (fallback)"]
         vdev["Virtual Audio Devices\n(VB-Cable / PulseAudio)"]
         capture["Audio Capture"]
         stt["Azure STT\n(Speech-to-Text)"]
@@ -58,10 +63,14 @@ graph TB
 
     meetjoin --> chat
     meetjoin --> screen
+    meetjoin --> transcriptobs
 
     chat -- "new message" --> eventbus
+    transcriptobs -- "caption text" --> eventbus
     stt -- "transcript" --> eventbus
     screen -- "screenshot" --> eventbus
+
+    fallback -- "if captions unavailable" --> capture
 
     eventbus --> context
     context --> decision
@@ -85,26 +94,28 @@ graph TB
 ### Data Flow
 
 ```
-Meeting Audio ─→ Virtual Speaker ─→ Audio Capture ─→ Azure STT ─→ Transcript
-                                                                       │
-Chat Messages ─────────────────────────────────────────────────────────→│
-                                                                       │
-Screen Shares ─→ Screenshot ─→ Claude Vision ──────────────────────────→│
-                                                                       ▼
-                                                                 Meeting Context
-                                                                       │
-                                                            ┌──────────┴──────────┐
-                                                            ▼                     ▼
-                                                    Decision Engine        Summary Generator
-                                                     (+ Profiles)               │
-                                                            │                    ▼
-                                                   ┌────────┴────────┐    Markdown Report
-                                                   ▼                ▼
-                                             Voice Reply      Chat Reply
-                                                   │                │
-                                            Claude → TTS      Browser Chat
-                                                   │
-                                            Virtual Mic → Meeting
+Teams Captions ─→ DOM Scraping ─→ TranscriptObserver ────────────────────→ Transcript
+        (or)                                                                   │
+Meeting Audio ──→ Virtual Speaker ─→ Audio Capture ─→ Azure STT ──(fallback)──→│
+                                                                               │
+Chat Messages ─────────────────────────────────────────────────────────────────→│
+                                                                               │
+Screen Shares ─→ Screenshot ─→ Claude Vision ──────────────────────────────────→│
+                                                                               ▼
+                                                                         Meeting Context
+                                                                               │
+                                                                    ┌──────────┴──────────┐
+                                                                    ▼                     ▼
+                                                            Decision Engine        Summary Generator
+                                                             (+ Profiles)               │
+                                                                    │                    ▼
+                                                           ┌────────┴────────┐    Markdown Report
+                                                           ▼                ▼
+                                                     Voice Reply      Chat Reply
+                                                           │                │
+                                                    Claude → TTS      Browser Chat
+                                                           │
+                                                    Virtual Mic → Meeting
 ```
 
 ## Behavior Profiles
@@ -164,9 +175,9 @@ teams-attendant/
 ## Prerequisites
 
 - **Python 3.12+**
-- **Azure Speech Services** subscription — for speech-to-text and text-to-speech
+- **Azure Speech Services** subscription — needed only when using audio transcription mode (`transcript_source: "audio"` or as fallback in `"auto"` mode). Not required for `"ui"` mode.
 - **Azure Foundry** access — with an Anthropic Claude model deployed
-- **Virtual audio driver** (for routing meeting audio):
+- **Virtual audio driver** *(audio mode only)* — not needed when using Teams live captions:
   - **Windows:** [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) (free)
   - **Linux:** PulseAudio (usually pre-installed)
 
@@ -249,6 +260,27 @@ export AZURE_FOUNDRY_API_KEY="your-foundry-api-key"
 export AZURE_FOUNDRY_MODEL="claude-sonnet"
 ```
 
+### Transcript Source
+
+By default, the agent reads meeting transcripts from Teams' built-in live captions. If captions aren't available, it falls back to capturing audio and using Azure Speech-to-Text.
+
+You can control this via `transcript_source` in your config:
+
+```yaml
+# In config/default.yaml
+transcript_source: "auto"   # Try captions first, fall back to audio (default)
+# transcript_source: "ui"   # Only use Teams live captions (no Azure Speech needed)
+# transcript_source: "audio" # Only use Azure Speech-to-Text (original behavior)
+```
+
+| Mode | Requires Azure Speech | Requires Virtual Audio | How it works |
+|------|----------------------|----------------------|--------------|
+| `auto` | Yes (for fallback) | Yes (for fallback) | Tries live captions first, falls back to audio STT |
+| `ui` | No | No | Reads Teams live captions only |
+| `audio` | Yes | Yes | Original behavior — audio capture → Azure STT |
+
+> **Note:** Live captions must be available in your Teams meeting for `ui` and `auto` modes to work. Any participant can typically enable them from the meeting toolbar.
+
 ## Usage
 
 ### Join a Meeting
@@ -306,7 +338,7 @@ teams-attendant profiles edit balanced
 
 2. **Join** — The agent navigates to the meeting URL in the Teams web client, configures audio to use the virtual audio devices, and clicks "Join now."
 
-3. **Listen** — Meeting audio flows through the virtual speaker device. The agent captures this audio stream and sends it to Azure Speech Services for continuous transcription with speaker diarization.
+3. **Listen** — By default, the agent enables Teams live captions and reads the transcript text directly from the meeting UI. If captions aren't available, it falls back to capturing meeting audio through virtual speaker devices and sending it to Azure Speech Services for transcription.
 
 4. **Observe chat** — A DOM observer watches the Teams chat panel for new messages, parsing author, timestamp, and content.
 
@@ -329,6 +361,7 @@ teams-attendant profiles edit balanced
 | Audio routing issues | Automated device detection with `teams-attendant audio check`. Clear setup guides per platform. |
 | Context window overflow in long meetings | Rolling summarization compresses older context. Configurable retention window. |
 | Authentication session expiry | Aggressive cookie persistence. Auto-detection of auth failures with re-login prompt. |
+| Live captions unavailable | Auto-fallback to audio STT pipeline. `transcript_source` config lets users force a specific mode. |
 
 ## License
 
