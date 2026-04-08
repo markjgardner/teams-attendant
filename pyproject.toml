@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "teams-attendant"
+version = "0.1.0"
+description = "AI agent that attends Microsoft Teams meetings on your behalf."
+requires-python = ">=3.12"
+dependencies = [
+    "playwright",
+    "typer[all]",
+    "pydantic",
+    "pyyaml",
+    "structlog",
+    "sounddevice",
+    "azure-cognitiveservices-speech",
+    "anthropic",
+    "httpx",
+    "rich",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[project.scripts]
+teams-attendant = "teams_attendant.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
