@@ -1,0 +1,7 @@
+name: passive
+description: "Listen only. Respond only when directly addressed by name."
+response_threshold: 0.9
+proactivity: 0.0
+response_length: minimal
+prefer_voice: false
+cooldown_seconds: 60

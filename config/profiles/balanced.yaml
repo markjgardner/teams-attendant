@@ -1,0 +1,7 @@
+name: balanced
+description: "Respond when addressed. Occasionally contribute relevant points."
+response_threshold: 0.5
+proactivity: 0.3
+response_length: concise
+prefer_voice: false
+cooldown_seconds: 30

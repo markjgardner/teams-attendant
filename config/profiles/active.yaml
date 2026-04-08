@@ -1,0 +1,7 @@
+name: active
+description: "Proactively contribute, ask questions, and engage in discussions."
+response_threshold: 0.3
+proactivity: 0.7
+response_length: moderate
+prefer_voice: true
+cooldown_seconds: 15
