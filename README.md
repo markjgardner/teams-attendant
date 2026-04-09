@@ -333,6 +333,75 @@ teams-attendant login --browser msedge
 
 > **Note:** Edge must be installed on your system. Chromium is bundled with Playwright and works out of the box.
 
+### Complete Configuration Examples
+
+<details>
+<summary><b>OpenAI GPT with Teams live captions (minimal setup)</b></summary>
+
+No Azure Speech subscription or virtual audio devices needed — just an OpenAI key:
+
+```yaml
+# config/default.yaml
+llm_provider: "openai"
+openai:
+  api_key: "sk-..."
+  model: "gpt-5.4"
+
+transcript_source: "ui"
+browser: "msedge"
+default_profile: "balanced"
+
+azure:
+  speech:
+    voice: "en-US-EmmaMultilingualNeural"
+```
+
+</details>
+
+<details>
+<summary><b>Anthropic Claude with audio transcription (full setup)</b></summary>
+
+Uses Azure Speech for both STT and TTS with a custom voice:
+
+```yaml
+# config/default.yaml
+llm_provider: "anthropic"
+azure:
+  speech:
+    key: "your-azure-speech-key"
+    region: "eastus"
+    voice: "en-US-EmmaMultilingualNeural"
+  foundry:
+    endpoint: "https://your-foundry.azure.com"
+    api_key: "your-foundry-api-key"
+    model_deployment: "claude-sonnet"
+
+transcript_source: "audio"
+browser: "chromium"
+default_profile: "active"
+```
+
+</details>
+
+<details>
+<summary><b>Environment variables only (no config file)</b></summary>
+
+```bash
+# LLM — OpenAI
+export OPENAI_API_KEY="sk-..."
+export OPENAI_MODEL="gpt-5.4"
+
+# Azure Speech — for TTS voice responses (optional with transcript_source=ui)
+export AZURE_SPEECH_KEY="your-key"
+export AZURE_SPEECH_REGION="eastus"
+export AZURE_SPEECH_VOICE="en-US-EmmaMultilingualNeural"
+
+teams-attendant join "https://teams.microsoft.com/l/meetup-join/..." \
+  --profile balanced --browser msedge
+```
+
+</details>
+
 ## Usage
 
 ### Join a Meeting
