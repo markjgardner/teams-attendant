@@ -13,7 +13,7 @@ from teams_attendant.agent.profiles import ParticipationDecision
 
 if TYPE_CHECKING:
     from teams_attendant.agent.context import MeetingContext
-    from teams_attendant.agent.llm import ClaudeClient, Message
+    from teams_attendant.agent.llm import LLMClient, Message
     from teams_attendant.agent.profiles import ProfileEvaluator
     from teams_attendant.utils.events import Event, EventBus
 
@@ -33,7 +33,7 @@ class AgentDecisionEngine:
 
     def __init__(
         self,
-        llm_client: ClaudeClient,
+        llm_client: LLMClient,
         context: MeetingContext,
         profile_evaluator: ProfileEvaluator,
         event_bus: EventBus,

@@ -439,7 +439,7 @@ class TestAgentSetup:
         with (
             patch("teams_attendant.config.load_profile") as mock_load,
             patch("teams_attendant.agent.profiles.ProfileEvaluator"),
-            patch("teams_attendant.agent.llm.ClaudeClient") as mock_llm_cls,
+            patch("teams_attendant.agent.llm.create_llm_client") as mock_create_llm,
             patch(
                 "teams_attendant.agent.core.AgentDecisionEngine"
             ) as mock_engine_cls,
@@ -448,7 +448,7 @@ class TestAgentSetup:
             mock_load.return_value = mock_profile
 
             mock_llm = MagicMock()
-            mock_llm_cls.return_value = mock_llm
+            mock_create_llm.return_value = mock_llm
 
             mock_engine = MagicMock()
             mock_engine.start = AsyncMock()
@@ -485,7 +485,7 @@ class TestVisionSetup:
         with (
             patch("teams_attendant.config.load_profile") as mock_load,
             patch("teams_attendant.agent.profiles.ProfileEvaluator"),
-            patch("teams_attendant.agent.llm.ClaudeClient") as mock_llm_cls,
+            patch("teams_attendant.agent.llm.create_llm_client") as mock_create_llm,
             patch(
                 "teams_attendant.agent.core.AgentDecisionEngine"
             ) as mock_engine_cls,
@@ -497,7 +497,7 @@ class TestVisionSetup:
             ) as mock_screen_cls,
         ):
             mock_load.return_value = MagicMock()
-            mock_llm_cls.return_value = MagicMock()
+            mock_create_llm.return_value = MagicMock()
 
             mock_engine = MagicMock()
             mock_engine.start = AsyncMock()
@@ -526,13 +526,13 @@ class TestVisionSetup:
         with (
             patch("teams_attendant.config.load_profile") as mock_load,
             patch("teams_attendant.agent.profiles.ProfileEvaluator"),
-            patch("teams_attendant.agent.llm.ClaudeClient") as mock_llm_cls,
+            patch("teams_attendant.agent.llm.create_llm_client") as mock_create_llm,
             patch(
                 "teams_attendant.agent.core.AgentDecisionEngine"
             ) as mock_engine_cls,
         ):
             mock_load.return_value = MagicMock()
-            mock_llm_cls.return_value = MagicMock()
+            mock_create_llm.return_value = MagicMock()
 
             mock_engine = MagicMock()
             mock_engine.start = AsyncMock()
@@ -552,7 +552,7 @@ class TestVisionSetup:
         with (
             patch("teams_attendant.config.load_profile") as mock_load,
             patch("teams_attendant.agent.profiles.ProfileEvaluator"),
-            patch("teams_attendant.agent.llm.ClaudeClient") as mock_llm_cls,
+            patch("teams_attendant.agent.llm.create_llm_client") as mock_create_llm,
             patch(
                 "teams_attendant.agent.core.AgentDecisionEngine"
             ) as mock_engine_cls,
@@ -562,7 +562,7 @@ class TestVisionSetup:
             ),
         ):
             mock_load.return_value = MagicMock()
-            mock_llm_cls.return_value = MagicMock()
+            mock_create_llm.return_value = MagicMock()
 
             mock_engine = MagicMock()
             mock_engine.start = AsyncMock()

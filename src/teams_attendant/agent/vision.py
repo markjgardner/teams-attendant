@@ -9,7 +9,7 @@ import structlog
 
 if TYPE_CHECKING:
     from teams_attendant.agent.context import MeetingContext
-    from teams_attendant.agent.llm import ClaudeClient
+    from teams_attendant.agent.llm import LLMClient
     from teams_attendant.utils.events import Event, EventBus
 
 log = structlog.get_logger()
@@ -31,7 +31,7 @@ class VisionAnalyzer:
 
     def __init__(
         self,
-        llm_client: ClaudeClient,
+        llm_client: LLMClient,
         context: MeetingContext,
         event_bus: EventBus,
         analysis_prompt: str = VISION_SYSTEM_PROMPT,

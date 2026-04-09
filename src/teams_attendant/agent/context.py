@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 if TYPE_CHECKING:
-    from teams_attendant.agent.llm import ClaudeClient
+    from teams_attendant.agent.llm import LLMClient
     from teams_attendant.utils.events import Event
 
 from teams_attendant.utils.events import EventBus
@@ -126,7 +126,7 @@ class MeetingContext:
         """Rough token estimate (chars / 4)."""
         return len(text) // 4
 
-    async def compress_if_needed(self, llm_client: ClaudeClient) -> None:
+    async def compress_if_needed(self, llm_client: LLMClient) -> None:
         """If context is getting large, summarize older entries."""
         if len(self._entries) < self._summary_threshold:
             return

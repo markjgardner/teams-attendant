@@ -21,3 +21,12 @@ transcript_source: "auto"
 #   "chromium" - Bundled Chromium (default)
 #   "msedge"   - System-installed Microsoft Edge
 browser: "chromium"
+
+# LLM provider: "anthropic" (Claude via Azure Foundry) or "openai" (GPT models)
+llm_provider: "anthropic"
+
+# OpenAI configuration (used when llm_provider is "openai")
+# openai:
+#   api_key: "your-openai-api-key"
+#   endpoint: "https://api.openai.com/v1"
+#   model: "gpt-4o"

@@ -11,7 +11,7 @@ import structlog
 
 if TYPE_CHECKING:
     from teams_attendant.agent.context import MeetingContext
-    from teams_attendant.agent.llm import ClaudeClient, Message
+    from teams_attendant.agent.llm import LLMClient, Message
 
 log = structlog.get_logger()
 
@@ -51,7 +51,7 @@ class MeetingSummarizer:
 
     def __init__(
         self,
-        llm_client: ClaudeClient,
+        llm_client: LLMClient,
         summaries_dir: Path = Path("summaries"),
     ) -> None:
         self._llm = llm_client

@@ -46,6 +46,15 @@ class AzureFoundryConfig(BaseModel):
     model_deployment: str = "claude-sonnet"
 
 
+class OpenAIConfig(BaseModel):
+    """OpenAI API configuration."""
+
+    api_key: str = ""
+    endpoint: str = "https://api.openai.com/v1"
+    model: str = "gpt-4o"
+    organization: str = ""
+
+
 class AzureConfig(BaseModel):
     """Azure services configuration."""
 
@@ -106,6 +115,15 @@ class AppConfig(BaseModel):
             "'msedge' uses system-installed Microsoft Edge"
         ),
     )
+    llm_provider: Literal["anthropic", "openai"] = Field(
+        default="anthropic",
+        description=(
+            "LLM provider to use: "
+            "'anthropic' for Claude via Azure Foundry, "
+            "'openai' for OpenAI GPT models"
+        ),
+    )
+    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
 
     def validate_for_meeting(self) -> list[str]:
         """Check that all credentials required for joining a meeting are present.
@@ -127,16 +145,23 @@ class AppConfig(BaseModel):
                     "(set azure.speech.region or AZURE_SPEECH_REGION, "
                     "or use transcript_source='ui' to skip)"
                 )
-        if not self.azure.foundry.endpoint:
-            errors.append(
-                "Azure Foundry endpoint is required "
-                "(set azure.foundry.endpoint or AZURE_FOUNDRY_ENDPOINT)"
-            )
-        if not self.azure.foundry.api_key:
-            errors.append(
-                "Azure Foundry API key is required "
-                "(set azure.foundry.api_key or AZURE_FOUNDRY_API_KEY)"
-            )
+        if self.llm_provider == "anthropic":
+            if not self.azure.foundry.endpoint:
+                errors.append(
+                    "Azure Foundry endpoint is required for Anthropic provider "
+                    "(set azure.foundry.endpoint or AZURE_FOUNDRY_ENDPOINT)"
+                )
+            if not self.azure.foundry.api_key:
+                errors.append(
+                    "Azure Foundry API key is required for Anthropic provider "
+                    "(set azure.foundry.api_key or AZURE_FOUNDRY_API_KEY)"
+                )
+        elif self.llm_provider == "openai":
+            if not self.openai.api_key:
+                errors.append(
+                    "OpenAI API key is required "
+                    "(set openai.api_key or OPENAI_API_KEY)"
+                )
         return errors
 
 
@@ -150,6 +175,10 @@ _ENV_MAP: dict[tuple[str, ...], str] = {
     ("azure", "foundry", "endpoint"): "AZURE_FOUNDRY_ENDPOINT",
     ("azure", "foundry", "api_key"): "AZURE_FOUNDRY_API_KEY",
     ("azure", "foundry", "model_deployment"): "AZURE_FOUNDRY_MODEL",
+    ("openai", "api_key"): "OPENAI_API_KEY",
+    ("openai", "endpoint"): "OPENAI_ENDPOINT",
+    ("openai", "model"): "OPENAI_MODEL",
+    ("openai", "organization"): "OPENAI_ORGANIZATION",
 }
 
 

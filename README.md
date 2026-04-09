@@ -8,7 +8,7 @@ An AI agent that attends Microsoft Teams meetings on your behalf. It joins under
 - **Listen & understand** — Reads meeting transcripts from Teams live captions (preferred) or captures audio and transcribes via Azure Speech Services. Automatic fallback when captions aren't available.
 - **Read the room** — Monitors the meeting chat for messages, questions, and mentions.
 - **Speak up** — Responds via voice (text-to-speech routed through a virtual microphone) or chat, depending on context.
-- **See what's shared** — Optionally captures screen-shared content and analyzes it with Claude's vision capabilities.
+- **See what's shared** — Optionally captures screen-shared content and analyzes it with vision capabilities (Claude and GPT both supported).
 - **Tunable behavior** — Three built-in profiles (Passive, Balanced, Active) control how much the agent participates. Configurable per meeting.
 - **Meeting summaries** — Generates a structured post-meeting summary including discussion points, decisions, action items, and how the agent contributed.
 
@@ -49,7 +49,7 @@ graph TB
     end
 
     subgraph Agent["AI Agent Core"]
-        llm["Claude via Azure Foundry"]
+        llm["LLM Client\n(Claude / GPT)"]
         context["Meeting Context\nAccumulator"]
         decision["Decision Engine"]
         profiles["Behavior Profiles\n(Passive / Balanced / Active)"]
@@ -100,7 +100,7 @@ Meeting Audio ──→ Virtual Speaker ─→ Audio Capture ─→ Azure STT �
                                                                                │
 Chat Messages ─────────────────────────────────────────────────────────────────→│
                                                                                │
-Screen Shares ─→ Screenshot ─→ Claude Vision ──────────────────────────────────→│
+Screen Shares ─→ Screenshot ─→ LLM Vision (Claude / GPT) ─────────────────────→│
                                                                                ▼
                                                                          Meeting Context
                                                                                │
@@ -113,7 +113,7 @@ Screen Shares ─→ Screenshot ─→ Claude Vision ─────────
                                                            ▼                ▼
                                                      Voice Reply      Chat Reply
                                                            │                │
-                                                    Claude → TTS      Browser Chat
+                                                    LLM → TTS      Browser Chat
                                                            │
                                                     Virtual Mic → Meeting
 ```
@@ -162,7 +162,7 @@ teams-attendant/
 │       ├── agent/
 │       │   ├── core.py             # Decision engine
 │       │   ├── context.py          # Meeting context accumulator
-│       │   ├── llm.py              # Claude client (Azure Foundry)
+│       │   ├── llm.py              # LLM client (Claude via Azure Foundry / OpenAI GPT)
 │       │   ├── profiles.py         # Behavior profile definitions
 │       │   └── summarizer.py       # Post-meeting summary generation
 │       └── utils/
@@ -176,7 +176,10 @@ teams-attendant/
 
 - **Python 3.12+**
 - **Azure Speech Services** subscription — needed only when using audio transcription mode (`transcript_source: "audio"` or as fallback in `"auto"` mode). Not required for `"ui"` mode.
-- **Azure Foundry** access — with an Anthropic Claude model deployed
+- **Azure Foundry** access — with an Anthropic Claude model deployed (when `llm_provider: "anthropic"`, the default)
+- **OpenAI API key** — for GPT models (when `llm_provider: "openai"`)
+
+> **Note:** Only one LLM provider is needed — choose either Azure Foundry (Claude) or OpenAI (GPT).
 - **Virtual audio driver** *(audio mode only)* — not needed when using Teams live captions:
   - **Windows:** [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) (free)
   - **Linux:** PulseAudio (usually pre-installed)
@@ -260,6 +263,36 @@ export AZURE_FOUNDRY_ENDPOINT="https://your-foundry.azure.com"
 export AZURE_FOUNDRY_API_KEY="your-foundry-api-key"
 export AZURE_FOUNDRY_MODEL="claude-sonnet"
 ```
+
+### LLM Provider
+
+The agent supports both Anthropic Claude (via Azure Foundry) and OpenAI GPT models:
+
+```yaml
+# In config/default.yaml
+
+# Use Claude (default)
+llm_provider: "anthropic"
+
+# Or use GPT
+llm_provider: "openai"
+openai:
+  api_key: "your-openai-api-key"
+  endpoint: "https://api.openai.com/v1"  # or Azure OpenAI endpoint
+  model: "gpt-4o"
+```
+
+Or via environment variables for OpenAI:
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+export OPENAI_MODEL="gpt-4o"
+```
+
+| Provider | Config key | Models | Vision support |
+|----------|-----------|--------|----------------|
+| Anthropic (Claude) | `llm_provider: "anthropic"` | Claude Sonnet, Opus, Haiku | ✅ |
+| OpenAI (GPT) | `llm_provider: "openai"` | GPT-4o, GPT-4, GPT-3.5 | ✅ |
 
 ### Transcript Source
 
@@ -364,7 +397,7 @@ teams-attendant profiles edit balanced
 
 4. **Observe chat** — A DOM observer watches the Teams chat panel for new messages, parsing author, timestamp, and content.
 
-5. **Observe screen** *(optional)* — When vision mode is enabled and someone is sharing their screen, periodic screenshots are captured and sent to Claude's vision API for analysis.
+5. **Observe screen** *(optional)* — When vision mode is enabled and someone is sharing their screen, periodic screenshots are captured and sent to the configured LLM's vision API (Claude or GPT) for analysis.
 
 6. **Decide** — The decision engine evaluates each new event (transcript segment, chat message, visual update) against the active behavior profile to determine whether and how to respond.
 
@@ -372,7 +405,7 @@ teams-attendant profiles edit balanced
    - **Voice:** Text is sent to Azure TTS, and the generated audio is piped through the virtual microphone into the meeting.
    - **Chat:** Messages are typed into the Teams chat via browser automation.
 
-8. **Summarize** — When the meeting ends, the full context (transcript, chat, agent actions, visual observations) is sent to Claude for summary generation. The summary is saved as a Markdown file.
+8. **Summarize** — When the meeting ends, the full context (transcript, chat, agent actions, visual observations) is sent to the configured LLM (Claude or GPT) for summary generation. The summary is saved as a Markdown file.
 
 ## Technical Risks & Mitigations
 

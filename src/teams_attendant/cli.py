@@ -117,6 +117,7 @@ def config(
     console.print(f"  Summaries dir:   {app_config.summaries_dir}")
     console.print(f"  Default profile: {app_config.default_profile}")
     console.print(f"  Browser:         {app_config.browser}")
+    console.print(f"  LLM provider:    {app_config.llm_provider}")
     console.print()
     console.print("[bold]Azure Speech[/bold]")
     console.print(f"  Region: {app_config.azure.speech.region}")
@@ -126,6 +127,11 @@ def config(
     console.print(f"  Endpoint:   {app_config.azure.foundry.endpoint or '[red]not set[/red]'}")
     console.print(f"  Model:      {app_config.azure.foundry.model_deployment}")
     console.print(f"  API Key:    {'***configured***' if app_config.azure.foundry.api_key else '[red]not set[/red]'}")
+    console.print()
+    console.print("[bold]OpenAI[/bold]")
+    console.print(f"  Endpoint:   {app_config.openai.endpoint}")
+    console.print(f"  Model:      {app_config.openai.model}")
+    console.print(f"  API Key:    {'***configured***' if app_config.openai.api_key else '[red]not set[/red]'}")
 
 
 @app.command()

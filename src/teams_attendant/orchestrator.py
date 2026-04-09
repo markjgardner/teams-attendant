@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
     from teams_attendant.agent.context import EventDrivenContext
     from teams_attendant.agent.core import AgentDecisionEngine
-    from teams_attendant.agent.llm import ClaudeClient
+    from teams_attendant.agent.llm import LLMClient
     from teams_attendant.agent.vision import VisionAnalyzer
     from teams_attendant.audio.capture import AudioCaptureStream
     from teams_attendant.audio.playback import AudioPlayer
@@ -47,7 +47,7 @@ class MeetingSession:
     meeting_controller: MeetingController
     chat_observer: ChatObserver
     browser_context: BrowserContext | None = None
-    llm_client: ClaudeClient | None = None
+    llm_client: LLMClient | None = None
     audio_capture: AudioCaptureStream | None = None
     transcriber: SpeechTranscriber | None = None
     synthesizer: SpeechSynthesizer | None = None
@@ -329,14 +329,14 @@ class MeetingOrchestrator:
             return
 
         from teams_attendant.agent.core import AgentDecisionEngine
-        from teams_attendant.agent.llm import ClaudeClient
+        from teams_attendant.agent.llm import create_llm_client
         from teams_attendant.agent.profiles import ProfileEvaluator
         from teams_attendant.config import load_profile
 
         profile = load_profile(profile_name)
         evaluator = ProfileEvaluator(profile, user_name=user_name)
 
-        llm_client = ClaudeClient(config=self._config.azure.foundry)
+        llm_client = create_llm_client(self._config)
         self._session.llm_client = llm_client
 
         chat_cb = self._create_chat_callback()

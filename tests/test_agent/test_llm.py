@@ -8,13 +8,16 @@ import httpx
 import pytest
 
 from teams_attendant.agent.llm import (
+    AnthropicClient,
     ClaudeClient,
     LLMAuthError,
     LLMRateLimitError,
     LLMResponse,
     Message,
+    create_llm_client,
 )
-from teams_attendant.config import AzureFoundryConfig
+from teams_attendant.agent.openai_llm import OpenAIClient
+from teams_attendant.config import AppConfig, AzureFoundryConfig
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +71,29 @@ def _httpx_response(
 # ---------------------------------------------------------------------------
 # Initialisation
 # ---------------------------------------------------------------------------
+
+
+class TestAlias:
+    def test_claude_client_alias(self) -> None:
+        assert ClaudeClient is AnthropicClient
+
+
+class TestFactory:
+    def test_create_llm_client_anthropic(self) -> None:
+        config = AppConfig(
+            llm_provider="anthropic",
+            azure={"foundry": {"endpoint": "https://e.com", "api_key": "k"}},
+        )
+        client = create_llm_client(config)
+        assert isinstance(client, AnthropicClient)
+
+    def test_create_llm_client_openai(self) -> None:
+        config = AppConfig(
+            llm_provider="openai",
+            openai={"api_key": "sk-test"},
+        )
+        client = create_llm_client(config)
+        assert isinstance(client, OpenAIClient)
 
 
 class TestClaudeClientInit:
