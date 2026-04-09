@@ -257,6 +257,22 @@ def _valid_foundry_creds() -> dict:
     }
 
 
+class TestBrowserField:
+    def test_browser_defaults_to_chromium(self) -> None:
+        cfg = AppConfig()
+        assert cfg.browser == "chromium"
+
+    def test_browser_accepts_msedge(self) -> None:
+        cfg = AppConfig(browser="msedge")
+        assert cfg.browser == "msedge"
+
+    def test_browser_rejects_invalid(self) -> None:
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            AppConfig(browser="firefox")
+
+
 class TestTranscriptSource:
     def test_transcript_source_defaults_to_auto(self) -> None:
         cfg = AppConfig()

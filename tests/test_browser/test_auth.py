@@ -11,9 +11,11 @@ from teams_attendant.browser.auth import (
     TEAMS_URL,
     _CHROME_USER_AGENT,
     _CHROMIUM_ARGS,
+    _EDGE_USER_AGENT,
     _STEALTH_JS,
     clear_session,
     get_authenticated_context,
+    is_session_valid,
     login,
 )
 
@@ -174,3 +176,98 @@ async def test_get_authenticated_context_with_audio_env(tmp_path: Path) -> None:
     assert env["PULSE_SOURCE"] == "my_source"
     # Should also contain existing os.environ entries
     assert "PATH" in env or len(env) > 2
+
+
+# ---------------------------------------------------------------------------
+# Edge browser support
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_persistent_context_edge_channel(tmp_path: Path) -> None:
+    """browser='msedge' should pass channel='msedge' to launch."""
+    pw = _make_mock_playwright()
+    await get_authenticated_context(pw, tmp_path / "data", headless=True, browser="msedge")
+
+    call_kwargs = pw.chromium.launch_persistent_context.call_args.kwargs
+    assert call_kwargs["channel"] == "msedge"
+
+
+@pytest.mark.asyncio
+async def test_create_persistent_context_edge_user_agent(tmp_path: Path) -> None:
+    """browser='msedge' should use the Edge user-agent string."""
+    pw = _make_mock_playwright()
+    await get_authenticated_context(pw, tmp_path / "data", headless=True, browser="msedge")
+
+    call_kwargs = pw.chromium.launch_persistent_context.call_args.kwargs
+    assert call_kwargs["user_agent"] == _EDGE_USER_AGENT
+
+
+@pytest.mark.asyncio
+async def test_create_persistent_context_chromium_no_channel(tmp_path: Path) -> None:
+    """Default browser='chromium' should NOT include a 'channel' kwarg."""
+    pw = _make_mock_playwright()
+    await get_authenticated_context(pw, tmp_path / "data", headless=True)
+
+    call_kwargs = pw.chromium.launch_persistent_context.call_args.kwargs
+    assert "channel" not in call_kwargs
+    assert call_kwargs["user_agent"] == _CHROME_USER_AGENT
+
+
+@pytest.mark.asyncio
+async def test_login_passes_browser_param(tmp_path: Path) -> None:
+    """login(browser='msedge') should forward the param to the persistent context."""
+    mock_context = AsyncMock()
+    mock_context.pages = [AsyncMock()]
+    mock_context.add_init_script = AsyncMock()
+    mock_context.close = AsyncMock()
+
+    mock_pw = MagicMock()
+    mock_pw.chromium.launch_persistent_context = AsyncMock(return_value=mock_context)
+
+    async_pw_cm = AsyncMock()
+    async_pw_cm.__aenter__ = AsyncMock(return_value=mock_pw)
+    async_pw_cm.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("teams_attendant.browser.auth.async_playwright", return_value=async_pw_cm):
+        await login(tmp_path / "data", browser="msedge")
+
+    call_kwargs = mock_pw.chromium.launch_persistent_context.call_args.kwargs
+    assert call_kwargs["channel"] == "msedge"
+    assert call_kwargs["user_agent"] == _EDGE_USER_AGENT
+
+
+@pytest.mark.asyncio
+async def test_get_authenticated_context_passes_browser(tmp_path: Path) -> None:
+    """get_authenticated_context should forward the browser param."""
+    pw = _make_mock_playwright()
+    await get_authenticated_context(pw, tmp_path / "data", headless=True, browser="msedge")
+
+    call_kwargs = pw.chromium.launch_persistent_context.call_args.kwargs
+    assert call_kwargs["channel"] == "msedge"
+
+
+@pytest.mark.asyncio
+async def test_is_session_valid_passes_browser(tmp_path: Path) -> None:
+    """is_session_valid(browser='msedge') should forward the param."""
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    mock_page = AsyncMock()
+    mock_context = AsyncMock()
+    mock_context.new_page = AsyncMock(return_value=mock_page)
+    mock_context.add_init_script = AsyncMock()
+    mock_context.close = AsyncMock()
+
+    mock_pw = MagicMock()
+    mock_pw.chromium.launch_persistent_context = AsyncMock(return_value=mock_context)
+
+    async_pw_cm = AsyncMock()
+    async_pw_cm.__aenter__ = AsyncMock(return_value=mock_pw)
+    async_pw_cm.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("teams_attendant.browser.auth.async_playwright", return_value=async_pw_cm):
+        await is_session_valid(data_dir, browser="msedge")
+
+    call_kwargs = mock_pw.chromium.launch_persistent_context.call_args.kwargs
+    assert call_kwargs["channel"] == "msedge"

@@ -198,6 +198,7 @@ pip install -e ".[dev]"
 
 # Install Playwright browsers
 playwright install chromium
+# Optional: to use Edge, ensure it's installed and set browser: "msedge" in config
 ```
 
 ### Virtual Audio Setup
@@ -233,7 +234,7 @@ Authenticate with Microsoft Teams (only needed once — the session is persisted
 teams-attendant login
 ```
 
-This opens a Chromium browser window where you sign into Teams normally. After successful login, the session cookies are saved for future use.
+This opens a browser window (Chromium by default, or Edge if configured) where you sign into Teams normally. After successful login, the session cookies are saved for future use.
 
 ### Azure Credentials
 
@@ -281,6 +282,24 @@ transcript_source: "auto"   # Try captions first, fall back to audio (default)
 
 > **Note:** Live captions must be available in your Teams meeting for `ui` and `auto` modes to work. Any participant can typically enable them from the meeting toolbar.
 
+### Browser
+
+By default, the agent uses bundled Chromium. To use Microsoft Edge instead:
+
+```yaml
+# In config/default.yaml
+browser: "msedge"
+```
+
+Or via the CLI:
+
+```bash
+teams-attendant join "https://teams.microsoft.com/l/..." --browser msedge
+teams-attendant login --browser msedge
+```
+
+> **Note:** Edge must be installed on your system. Chromium is bundled with Playwright and works out of the box.
+
 ## Usage
 
 ### Join a Meeting
@@ -294,6 +313,9 @@ teams-attendant join "https://teams.microsoft.com/l/meetup-join/..." --profile p
 
 # Join in active mode with vision enabled
 teams-attendant join "https://teams.microsoft.com/l/meetup-join/..." --profile active --vision
+
+# Join using Microsoft Edge
+teams-attendant join "https://teams.microsoft.com/l/meetup-join/..." --browser msedge
 ```
 
 During the meeting, the CLI shows real-time status:
@@ -334,7 +356,7 @@ teams-attendant profiles edit balanced
 
 ## How It Works
 
-1. **Login** — Playwright opens Chromium and you authenticate with Teams normally. Session cookies are persisted so this is a one-time step.
+1. **Login** — Playwright opens a browser (Chromium by default, or Microsoft Edge) and you authenticate with Teams normally. Session cookies are persisted so this is a one-time step.
 
 2. **Join** — The agent navigates to the meeting URL in the Teams web client, configures audio to use the virtual audio devices, and clicks "Join now."
 

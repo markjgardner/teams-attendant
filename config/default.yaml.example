@@ -16,3 +16,8 @@ default_profile: "balanced"
 #   "ui"    - Only use Teams live captions (no Azure Speech needed)
 #   "audio" - Only use Azure Speech-to-Text (original behavior)
 transcript_source: "auto"
+
+# Browser to use:
+#   "chromium" - Bundled Chromium (default)
+#   "msedge"   - System-installed Microsoft Edge
+browser: "chromium"

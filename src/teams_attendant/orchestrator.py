@@ -206,6 +206,7 @@ class MeetingOrchestrator:
             browser_data_dir=self._config.browser_data_dir,
             headless=True,
             audio_env=audio_env or None,
+            browser=self._config.browser,
         )
 
         controller = MeetingController(context=browser_context)

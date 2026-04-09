@@ -29,6 +29,12 @@ _CHROME_USER_AGENT = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
+_EDGE_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0"
+)
+
 _STEALTH_JS = """
 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
 """
@@ -50,19 +56,25 @@ async def _create_persistent_context(
     *,
     headless: bool = True,
     audio_env: dict[str, str] | None = None,
+    browser: str = "chromium",
 ) -> BrowserContext:
     """Create a persistent browser context with stealth settings."""
     _ensure_dir(browser_data_dir)
 
+    user_agent = _EDGE_USER_AGENT if browser == "msedge" else _CHROME_USER_AGENT
+
     launch_kwargs: dict = dict(
         user_data_dir=str(browser_data_dir),
         headless=headless,
-        user_agent=_CHROME_USER_AGENT,
+        user_agent=user_agent,
         viewport={"width": 1920, "height": 1080},
         locale="en-US",
         permissions=[],
         args=_CHROMIUM_ARGS,
     )
+
+    if browser == "msedge":
+        launch_kwargs["channel"] = "msedge"
 
     if audio_env:
         merged_env = {**os.environ, **audio_env}
@@ -74,17 +86,20 @@ async def _create_persistent_context(
     return context
 
 
-async def login(browser_data_dir: Path = Path(".browser-data")) -> None:
+async def login(
+    browser_data_dir: Path = Path(".browser-data"),
+    browser: str = "chromium",
+) -> None:
     """Launch a visible browser for the user to log in to Teams.
 
     The browser stays open until login is detected or the timeout is reached.
     Session data is persisted automatically via the persistent context.
     """
-    log.info("browser.login.start", browser_data_dir=str(browser_data_dir))
+    log.info("browser.login.start", browser_data_dir=str(browser_data_dir), browser=browser)
 
     async with async_playwright() as pw:
         context = await _create_persistent_context(
-            pw, browser_data_dir, headless=False
+            pw, browser_data_dir, headless=False, browser=browser
         )
         page = context.pages[0] if context.pages else await context.new_page()
 
@@ -105,7 +120,10 @@ async def login(browser_data_dir: Path = Path(".browser-data")) -> None:
         await context.close()
 
 
-async def is_session_valid(browser_data_dir: Path = Path(".browser-data")) -> bool:
+async def is_session_valid(
+    browser_data_dir: Path = Path(".browser-data"),
+    browser: str = "chromium",
+) -> bool:
     """Check whether the persisted session is still authenticated.
 
     Launches a headless browser, navigates to Teams, and checks for
@@ -119,7 +137,7 @@ async def is_session_valid(browser_data_dir: Path = Path(".browser-data")) -> bo
     try:
         async with async_playwright() as pw:
             context = await _create_persistent_context(
-                pw, browser_data_dir, headless=True
+                pw, browser_data_dir, headless=True, browser=browser
             )
             page = await context.new_page()
             await page.goto(TEAMS_URL, wait_until="domcontentloaded")
@@ -145,6 +163,7 @@ async def get_authenticated_context(
     *,
     headless: bool = True,
     audio_env: dict[str, str] | None = None,
+    browser: str = "chromium",
 ) -> BrowserContext:
     """Return a Playwright BrowserContext with the persisted session.
 
@@ -162,9 +181,10 @@ async def get_authenticated_context(
         browser_data_dir=str(browser_data_dir),
         headless=headless,
         audio_env=bool(audio_env),
+        browser=browser,
     )
     return await _create_persistent_context(
-        playwright, browser_data_dir, headless=headless, audio_env=audio_env
+        playwright, browser_data_dir, headless=headless, audio_env=audio_env, browser=browser
     )
 
 

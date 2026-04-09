@@ -98,6 +98,14 @@ class AppConfig(BaseModel):
             "'audio' uses only Azure Speech-to-Text"
         ),
     )
+    browser: Literal["chromium", "msedge"] = Field(
+        default="chromium",
+        description=(
+            "Browser to use: "
+            "'chromium' uses bundled Chromium, "
+            "'msedge' uses system-installed Microsoft Edge"
+        ),
+    )
 
     def validate_for_meeting(self) -> list[str]:
         """Check that all credentials required for joining a meeting are present.

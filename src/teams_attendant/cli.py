@@ -23,6 +23,7 @@ def join(
     vision: bool = typer.Option(False, "--vision", "-v", help="Enable vision mode"),
     user_name: str = typer.Option("", "--name", "-n", help="Your display name (for address detection)"),
     log_level: str = typer.Option("INFO", "--log-level", "-l", help="Log level"),
+    browser: str = typer.Option("", "--browser", "-b", help="Browser: chromium (default) or msedge"),
 ) -> None:
     """Join a Teams meeting with the AI agent."""
     from teams_attendant.config import load_app_config
@@ -33,6 +34,10 @@ def join(
 
     config = load_app_config()
 
+    if browser:
+        from teams_attendant.config import merge_configs
+        config = merge_configs(config, {"browser": browser})
+
     if "teams.microsoft.com" not in meeting_url and "teams.live.com" not in meeting_url:
         console.print("[red]Error:[/red] Invalid Teams meeting URL.")
         raise typer.Exit(code=1)
@@ -40,6 +45,7 @@ def join(
     console.print("[bold]Teams Attendant[/bold]")
     console.print(f"  Profile: [cyan]{profile}[/cyan]")
     console.print(f"  Vision:  [cyan]{'enabled' if vision else 'disabled'}[/cyan]")
+    console.print(f"  Browser: [cyan]{config.browser}[/cyan]")
     console.print()
 
     orchestrator = MeetingOrchestrator(config)
@@ -63,12 +69,14 @@ def join(
 @app.command()
 def login(
     clear: bool = typer.Option(False, "--clear", help="Clear existing session and re-login"),
+    browser: str = typer.Option("", "--browser", "-b", help="Browser: chromium (default) or msedge"),
 ) -> None:
     """Authenticate with Microsoft Teams (first-time setup)."""
     from teams_attendant.browser.auth import clear_session, is_session_valid, login as teams_login
     from teams_attendant.config import load_app_config
 
     config = load_app_config()
+    browser_type = browser or config.browser
 
     if clear:
         console.print("Clearing existing session...")
@@ -76,7 +84,7 @@ def login(
         console.print("[green]✓[/green] Session cleared.")
 
     console.print("Checking existing session...")
-    if asyncio.run(is_session_valid(config.browser_data_dir)):
+    if asyncio.run(is_session_valid(config.browser_data_dir, browser=browser_type)):
         console.print("[green]✓[/green] Already logged in!")
         return
 
@@ -86,7 +94,7 @@ def login(
     console.print()
 
     try:
-        asyncio.run(teams_login(config.browser_data_dir))
+        asyncio.run(teams_login(config.browser_data_dir, browser=browser_type))
         console.print("[green]✓[/green] Login successful! Session saved.")
     except Exception as e:
         console.print(f"[red]✗[/red] Login failed: {e}")
@@ -108,6 +116,7 @@ def config(
     console.print(f"  Browser data:    {app_config.browser_data_dir}")
     console.print(f"  Summaries dir:   {app_config.summaries_dir}")
     console.print(f"  Default profile: {app_config.default_profile}")
+    console.print(f"  Browser:         {app_config.browser}")
     console.print()
     console.print("[bold]Azure Speech[/bold]")
     console.print(f"  Region: {app_config.azure.speech.region}")
