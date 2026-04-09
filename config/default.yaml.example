@@ -23,11 +23,7 @@ transcript_source: "auto"
 #   "msedge"   - System-installed Microsoft Edge
 browser: "chromium"
 
-# LLM provider: "anthropic" (Claude via Azure Foundry) or "openai" (GPT models)
+# LLM API format: "anthropic" (Claude, Messages API) or "openai" (GPT, Chat Completions API)
+# Both use the same Azure Foundry endpoint and credentials above.
+# Set model_deployment to match your deployed model (e.g. "claude-sonnet" or "gpt-4o").
 llm_provider: "anthropic"
-
-# OpenAI configuration (used when llm_provider is "openai")
-# openai:
-#   api_key: "your-openai-api-key"
-#   endpoint: "https://api.openai.com/v1"
-#   model: "gpt-4o"

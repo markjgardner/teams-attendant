@@ -127,11 +127,6 @@ def config(
     console.print(f"  Endpoint:   {app_config.azure.foundry.endpoint or '[red]not set[/red]'}")
     console.print(f"  Model:      {app_config.azure.foundry.model_deployment}")
     console.print(f"  API Key:    {'***configured***' if app_config.azure.foundry.api_key else '[red]not set[/red]'}")
-    console.print()
-    console.print("[bold]OpenAI[/bold]")
-    console.print(f"  Endpoint:   {app_config.openai.endpoint}")
-    console.print(f"  Model:      {app_config.openai.model}")
-    console.print(f"  API Key:    {'***configured***' if app_config.openai.api_key else '[red]not set[/red]'}")
 
 
 @app.command()

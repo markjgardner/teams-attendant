@@ -408,5 +408,5 @@ def create_llm_client(config) -> LLMClient:
     if config.llm_provider == "openai":
         from teams_attendant.agent.openai_llm import OpenAIClient
 
-        return OpenAIClient(config=config.openai)
+        return OpenAIClient(config=config.azure.foundry)
     return AnthropicClient(config=config.azure.foundry)

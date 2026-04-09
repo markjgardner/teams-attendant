@@ -1,4 +1,4 @@
-"""OpenAI GPT client via Chat Completions API."""
+"""OpenAI-compatible GPT client via Azure Foundry."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from teams_attendant.agent.llm import LLMResponse, Message
 from teams_attendant.errors import LLMAuthError, LLMRateLimitError
 
 if TYPE_CHECKING:
-    from teams_attendant.config import OpenAIConfig
+    from teams_attendant.config import AzureFoundryConfig
 
 log = structlog.get_logger()
 
@@ -32,12 +32,12 @@ _INITIAL_BACKOFF = 1.0  # seconds
 
 
 class OpenAIClient:
-    """Client for OpenAI GPT models (direct API or Azure OpenAI)."""
+    """Client for OpenAI-compatible models deployed on Azure Foundry."""
 
-    def __init__(self, config: OpenAIConfig) -> None:
+    def __init__(self, config: AzureFoundryConfig) -> None:
         self._config = config
         self._base_url = config.endpoint.rstrip("/")
-        self._model = config.model
+        self._model = config.model_deployment
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(
                 connect=30.0, read=120.0, write=30.0, pool=30.0,
@@ -113,17 +113,15 @@ class OpenAIClient:
     # -- request helpers ----------------------------------------------------
 
     def _build_headers(self) -> dict[str, str]:
-        headers = {
+        return {
+            "api-key": self._config.api_key,
             "Authorization": f"Bearer {self._config.api_key}",
             "Content-Type": "application/json",
         }
-        if self._config.organization:
-            headers["OpenAI-Organization"] = self._config.organization
-        return headers
 
     @property
     def _completions_url(self) -> str:
-        return f"{self._base_url}/chat/completions"
+        return f"{self._base_url}/models/{self._model}/chat/completions"
 
     def _build_request_body(
         self,

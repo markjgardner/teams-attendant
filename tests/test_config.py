@@ -9,7 +9,6 @@ import yaml
 
 from teams_attendant.config import (
     AppConfig,
-    OpenAIConfig,
     list_profiles,
     load_app_config,
     load_profile,
@@ -338,33 +337,14 @@ class TestLLMProviderConfig:
         with pytest.raises(ValidationError):
             AppConfig(llm_provider="gemini")
 
-    def test_openai_config_defaults(self) -> None:
-        cfg = AppConfig()
-        assert isinstance(cfg.openai, OpenAIConfig)
-        assert cfg.openai.api_key == ""
-        assert cfg.openai.endpoint == "https://api.openai.com/v1"
-        assert cfg.openai.model == "gpt-4o"
-        assert cfg.openai.organization == ""
-
     def test_validate_anthropic_requires_foundry_creds(self) -> None:
         cfg = AppConfig(llm_provider="anthropic")
         errors = cfg.validate_for_meeting()
         assert any("Foundry endpoint" in e for e in errors)
         assert any("Foundry API key" in e for e in errors)
 
-    def test_validate_openai_requires_api_key(self) -> None:
+    def test_validate_openai_still_requires_foundry(self) -> None:
         cfg = AppConfig(llm_provider="openai")
         errors = cfg.validate_for_meeting()
-        assert any("OpenAI API key" in e for e in errors)
-        # Should not require foundry creds
-        assert not any("Foundry" in e for e in errors)
-
-    def test_validate_openai_skips_foundry_creds(self) -> None:
-        cfg = AppConfig(
-            llm_provider="openai",
-            openai={"api_key": "sk-test"},
-            transcript_source="ui",
-        )
-        errors = cfg.validate_for_meeting()
-        assert not any("Foundry" in e for e in errors)
-        assert errors == []
+        assert any("Foundry endpoint" in e for e in errors)
+        assert any("Foundry API key" in e for e in errors)

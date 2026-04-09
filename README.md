@@ -266,33 +266,28 @@ export AZURE_FOUNDRY_MODEL="claude-sonnet"
 
 ### LLM Provider
 
-The agent supports both Anthropic Claude (via Azure Foundry) and OpenAI GPT models:
+The agent supports both Anthropic Claude and OpenAI GPT models, both served through Azure Foundry. The `llm_provider` setting controls which API format is used:
 
 ```yaml
-# In config/default.yaml
+# In config/default.yaml — both use the same Foundry endpoint and credentials
 
-# Use Claude (default)
+# For Claude models (Anthropic Messages API)
 llm_provider: "anthropic"
+azure:
+  foundry:
+    model_deployment: "claude-sonnet"
 
-# Or use GPT
+# For GPT models (OpenAI Chat Completions API)
 llm_provider: "openai"
-openai:
-  api_key: "your-openai-api-key"
-  endpoint: "https://api.openai.com/v1"  # or Azure OpenAI endpoint
-  model: "gpt-4o"
+azure:
+  foundry:
+    model_deployment: "gpt-4o"
 ```
 
-Or via environment variables for OpenAI:
-
-```bash
-export OPENAI_API_KEY="your-openai-api-key"
-export OPENAI_MODEL="gpt-4o"
-```
-
-| Provider | Config key | Models | Vision support |
-|----------|-----------|--------|----------------|
-| Anthropic (Claude) | `llm_provider: "anthropic"` | Claude Sonnet, Opus, Haiku | ✅ |
-| OpenAI (GPT) | `llm_provider: "openai"` | GPT-4o, GPT-4, GPT-3.5 | ✅ |
+| Provider | Config key | API format | Vision support |
+|----------|-----------|------------|----------------|
+| Anthropic (Claude) | `llm_provider: "anthropic"` | Messages API | ✅ |
+| OpenAI (GPT) | `llm_provider: "openai"` | Chat Completions API | ✅ |
 
 ### Transcript Source
 
@@ -338,22 +333,22 @@ teams-attendant login --browser msedge
 <details>
 <summary><b>OpenAI GPT with Teams live captions (minimal setup)</b></summary>
 
-No Azure Speech subscription or virtual audio devices needed — just an OpenAI key:
+No Azure Speech subscription or virtual audio devices needed — just a Foundry endpoint with a GPT model:
 
 ```yaml
 # config/default.yaml
 llm_provider: "openai"
-openai:
-  api_key: "sk-..."
-  model: "gpt-5.4"
+azure:
+  foundry:
+    endpoint: "https://your-foundry.azure.com"
+    api_key: "your-foundry-api-key"
+    model_deployment: "gpt-5.4"
+  speech:
+    voice: "en-US-EmmaMultilingualNeural"
 
 transcript_source: "ui"
 browser: "msedge"
 default_profile: "balanced"
-
-azure:
-  speech:
-    voice: "en-US-EmmaMultilingualNeural"
 ```
 
 </details>
@@ -387,9 +382,10 @@ default_profile: "active"
 <summary><b>Environment variables only (no config file)</b></summary>
 
 ```bash
-# LLM — OpenAI
-export OPENAI_API_KEY="sk-..."
-export OPENAI_MODEL="gpt-5.4"
+# Azure Foundry — required for LLM (Claude or GPT)
+export AZURE_FOUNDRY_ENDPOINT="https://your-foundry.azure.com"
+export AZURE_FOUNDRY_API_KEY="your-foundry-api-key"
+export AZURE_FOUNDRY_MODEL="gpt-5.4"
 
 # Azure Speech — for TTS voice responses (optional with transcript_source=ui)
 export AZURE_SPEECH_KEY="your-key"

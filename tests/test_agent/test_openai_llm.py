@@ -10,7 +10,7 @@ import pytest
 
 from teams_attendant.agent.llm import LLMResponse, Message, create_llm_client
 from teams_attendant.agent.openai_llm import OpenAIClient
-from teams_attendant.config import AppConfig, OpenAIConfig
+from teams_attendant.config import AppConfig, AzureFoundryConfig
 from teams_attendant.errors import LLMAuthError, LLMRateLimitError
 
 
@@ -20,33 +20,17 @@ from teams_attendant.errors import LLMAuthError, LLMRateLimitError
 
 
 @pytest.fixture
-def config() -> OpenAIConfig:
-    return OpenAIConfig(
+def config() -> AzureFoundryConfig:
+    return AzureFoundryConfig(
         api_key="test-key-123",
-        endpoint="https://api.openai.com/v1",
-        model="gpt-4o",
-        organization="test-org",
+        endpoint="https://your-foundry.azure.com",
+        model_deployment="gpt-4o",
     )
 
 
 @pytest.fixture
-def config_no_org() -> OpenAIConfig:
-    return OpenAIConfig(
-        api_key="test-key-123",
-        endpoint="https://api.openai.com/v1",
-        model="gpt-4o",
-        organization="",
-    )
-
-
-@pytest.fixture
-def client(config: OpenAIConfig) -> OpenAIClient:
+def client(config: AzureFoundryConfig) -> OpenAIClient:
     return OpenAIClient(config)
-
-
-@pytest.fixture
-def client_no_org(config_no_org: OpenAIConfig) -> OpenAIClient:
-    return OpenAIClient(config_no_org)
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +61,7 @@ def _httpx_response(
     return httpx.Response(
         status_code=status_code,
         json=json_body or _api_response(),
-        request=httpx.Request("POST", "https://api.openai.com/v1/chat/completions"),
+        request=httpx.Request("POST", "https://your-foundry.azure.com/models/gpt-4o/chat/completions"),
     )
 
 
@@ -87,21 +71,21 @@ def _httpx_response(
 
 
 class TestClientCreation:
-    def test_client_creation(self, config: OpenAIConfig) -> None:
+    def test_client_creation(self, config: AzureFoundryConfig) -> None:
         c = OpenAIClient(config)
         assert c._config is config
         assert c._model == "gpt-4o"
-        assert c._base_url == "https://api.openai.com/v1"
+        assert c._base_url == "https://your-foundry.azure.com"
 
     def test_trailing_slash_stripped(self) -> None:
-        cfg = OpenAIConfig(
-            api_key="k", endpoint="https://api.openai.com/v1/", model="m",
+        cfg = AzureFoundryConfig(
+            api_key="k", endpoint="https://your-foundry.azure.com/", model_deployment="m",
         )
         c = OpenAIClient(cfg)
-        assert c._base_url == "https://api.openai.com/v1"
+        assert c._base_url == "https://your-foundry.azure.com"
 
     def test_completions_url(self, client: OpenAIClient) -> None:
-        assert client._completions_url == "https://api.openai.com/v1/chat/completions"
+        assert client._completions_url == "https://your-foundry.azure.com/models/gpt-4o/chat/completions"
 
 
 # ---------------------------------------------------------------------------
@@ -115,12 +99,12 @@ class TestHeaders:
         assert headers["Authorization"] == "Bearer test-key-123"
         assert headers["Content-Type"] == "application/json"
 
-    def test_headers_include_organization(self, client: OpenAIClient) -> None:
+    def test_headers_contain_api_key(self, client: OpenAIClient) -> None:
         headers = client._build_headers()
-        assert headers["OpenAI-Organization"] == "test-org"
+        assert headers["api-key"] == "test-key-123"
 
-    def test_headers_omit_organization_when_empty(self, client_no_org: OpenAIClient) -> None:
-        headers = client_no_org._build_headers()
+    def test_headers_no_organization(self, client: OpenAIClient) -> None:
+        headers = client._build_headers()
         assert "OpenAI-Organization" not in headers
 
 
@@ -438,7 +422,7 @@ class TestFactory:
     def test_create_llm_client_openai(self) -> None:
         cfg = AppConfig(
             llm_provider="openai",
-            openai=OpenAIConfig(api_key="k", model="gpt-4o"),
+            azure={"foundry": {"endpoint": "https://e.com", "api_key": "k", "model_deployment": "gpt-4o"}},
         )
         c = create_llm_client(cfg)
         assert isinstance(c, OpenAIClient)
