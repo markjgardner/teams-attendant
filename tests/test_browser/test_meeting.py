@@ -55,6 +55,15 @@ def _make_page(*, is_closed: bool = False) -> AsyncMock:
 
     # Default: wait_for_selector returns a mock element
     page.wait_for_selector = AsyncMock(return_value=_make_element())
+
+    # locator() is synchronous in Playwright; returns a Locator with .first
+    def _make_locator(selector: str) -> MagicMock:
+        loc = MagicMock()
+        loc.first = MagicMock()
+        loc.first.wait_for = AsyncMock()
+        return loc
+
+    page.locator = MagicMock(side_effect=_make_locator)
     return page
 
 

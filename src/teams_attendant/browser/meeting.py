@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 import structlog
 from playwright.async_api import BrowserContext, Page, TimeoutError as PlaywrightTimeout
@@ -67,9 +68,9 @@ _SEL_IN_MEETING = (
 # Waiting room
 _SEL_WAITING_ROOM = (
     "[data-tid='waiting-room'],"
-    "text='Waiting for someone to let you in',"
-    "text='waiting to be admitted',"
-    "text='Someone in the meeting should let you in soon'"
+    ":has-text('Waiting for someone to let you in'),"
+    ":has-text('waiting to be admitted'),"
+    ":has-text('Someone in the meeting should let you in soon')"
 )
 
 # Leave / hangup button
@@ -375,9 +376,7 @@ class MeetingController:
         try:
             el = await page.wait_for_selector(_SEL_CAMERA_TOGGLE, timeout=5_000, state="visible")
             if el:
-                aria = await el.get_attribute("aria-checked")
-                aria_pressed = await el.get_attribute("aria-pressed")
-                is_on = (aria or aria_pressed or "").lower() in ("true",)
+                is_on = await self._is_device_on(el)
 
                 if is_on:
                     await el.click()
@@ -392,10 +391,7 @@ class MeetingController:
         try:
             el = await page.wait_for_selector(_SEL_MIC_TOGGLE, timeout=5_000, state="visible")
             if el:
-                aria = await el.get_attribute("aria-checked")
-                aria_pressed = await el.get_attribute("aria-pressed")
-                # For mic: aria-checked="true" or aria-pressed="true" means unmuted
-                is_on = (aria or aria_pressed or "").lower() in ("true",)
+                is_on = await self._is_device_on(el)
 
                 if not is_on:
                     await el.click()
@@ -404,6 +400,25 @@ class MeetingController:
                     log.info("meeting.mic.already_on")
         except PlaywrightTimeout:
             log.warning("meeting.mic.toggle_not_found")
+
+    @staticmethod
+    async def _is_device_on(el: Any) -> bool:
+        """Determine whether a camera/mic toggle indicates the device is ON.
+
+        ``aria-checked="true"`` means the device is ON.
+        ``aria-pressed="true"`` on a mute-style button means mute is
+        *active*, so the device is **OFF** — the semantics are inverted.
+        """
+        aria = await el.get_attribute("aria-checked")
+        if aria is not None:
+            return aria.lower() == "true"
+
+        aria_pressed = await el.get_attribute("aria-pressed")
+        if aria_pressed is not None:
+            # aria-pressed="true" → mute active → device OFF
+            return aria_pressed.lower() == "false"
+
+        return False
 
     async def _wait_for_join_or_waiting_room(
         self,
@@ -415,25 +430,41 @@ class MeetingController:
 
         Returns ``True`` if directly joined, ``False`` if in waiting room.
         """
-        combined = f"{_SEL_IN_MEETING},{_SEL_WAITING_ROOM}"
+        in_meeting = page.locator(_SEL_IN_MEETING).first
+        waiting_room = page.locator(_SEL_WAITING_ROOM).first
+
         try:
-            el = await page.wait_for_selector(combined, timeout=timeout_ms, state="visible")
-            if el:
-                # Check which one matched
-                for sel in _SEL_WAITING_ROOM.split(","):
-                    sel = sel.strip()
-                    try:
-                        waiting = await page.wait_for_selector(
-                            sel, timeout=500, state="visible"
-                        )
-                        if waiting:
-                            return False
-                    except PlaywrightTimeout:
-                        continue
-                return True
-        except PlaywrightTimeout:
-            raise
-        return True
+            first = await asyncio.wait_for(
+                self._race_locators(in_meeting, waiting_room),
+                timeout=timeout_ms / 1000,
+            )
+        except asyncio.TimeoutError:
+            raise PlaywrightTimeout("Timed out waiting for meeting or waiting room")
+
+        return first == "joined"
+
+    @staticmethod
+    async def _race_locators(
+        in_meeting: Any,
+        waiting_room: Any,
+    ) -> str:
+        """Return ``'joined'`` or ``'waiting'`` depending on which locator appears first."""
+
+        async def _wait_joined() -> str:
+            await in_meeting.wait_for(state="visible", timeout=0)
+            return "joined"
+
+        async def _wait_waiting() -> str:
+            await waiting_room.wait_for(state="visible", timeout=0)
+            return "waiting"
+
+        done, pending = await asyncio.wait(
+            [asyncio.create_task(_wait_joined()), asyncio.create_task(_wait_waiting())],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+        return done.pop().result()
 
     async def _wait_for_admission(
         self,

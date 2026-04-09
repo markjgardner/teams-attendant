@@ -132,11 +132,17 @@ class AppConfig(BaseModel):
         errors: list[str] = []
         if self.transcript_source in ("audio", "auto"):
             if not self.azure.speech.key:
-                errors.append(
-                    "Azure Speech key is required for audio transcription "
-                    "(set azure.speech.key or AZURE_SPEECH_KEY, "
-                    "or use transcript_source='ui' to skip)"
-                )
+                # Identity-based auth is acceptable when no key is provided,
+                # but we still need azure-identity to be installed.
+                try:
+                    import azure.identity  # noqa: F401
+                except ImportError:
+                    errors.append(
+                        "Azure Speech key is required for audio transcription "
+                        "(set azure.speech.key or AZURE_SPEECH_KEY, "
+                        "install azure-identity for identity-based auth, "
+                        "or use transcript_source='ui' to skip)"
+                    )
             if not self.azure.speech.region:
                 errors.append(
                     "Azure Speech region is required for audio transcription "

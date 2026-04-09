@@ -29,6 +29,12 @@ class MeetingJoinError(BrowserError):
     pass
 
 
+class BrowserProfileLockedError(BrowserError):
+    """Browser profile directory is locked by another process."""
+
+    pass
+
+
 class MeetingDisconnectedError(BrowserError):
     """Disconnected from meeting unexpectedly."""
 

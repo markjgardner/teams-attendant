@@ -41,10 +41,9 @@ class SpeechTranscriber:
         self._recognizer: speechsdk.SpeechRecognizer | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
 
-        speech_config = speechsdk.SpeechConfig(
-            subscription=config.key,
-            region=config.region,
-        )
+        from teams_attendant.audio.speech_auth import build_speech_config
+
+        speech_config = build_speech_config(config)
         speech_config.speech_recognition_language = "en-US"
 
         # Enable diarization if available

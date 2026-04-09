@@ -24,6 +24,10 @@ def join(
     user_name: str = typer.Option("", "--name", "-n", help="Your display name (for address detection)"),
     log_level: str = typer.Option("INFO", "--log-level", "-l", help="Log level"),
     browser: str = typer.Option("", "--browser", "-b", help="Browser: chromium (default) or msedge"),
+    system_profile: bool = typer.Option(
+        False, "--system-profile", "-s",
+        help="Use the system browser profile (browser must be closed first)",
+    ),
 ) -> None:
     """Join a Teams meeting with the AI agent."""
     from teams_attendant.config import load_app_config
@@ -38,6 +42,17 @@ def join(
         from teams_attendant.config import merge_configs
         config = merge_configs(config, {"browser": browser})
 
+    if system_profile:
+        from teams_attendant.browser.auth import get_system_browser_profile
+        from teams_attendant.config import merge_configs as _merge
+
+        try:
+            profile_dir = get_system_browser_profile(config.browser)
+        except FileNotFoundError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(code=1)
+        config = _merge(config, {"browser_data_dir": str(profile_dir)})
+
     if "teams.microsoft.com" not in meeting_url and "teams.live.com" not in meeting_url:
         console.print("[red]Error:[/red] Invalid Teams meeting URL.")
         raise typer.Exit(code=1)
@@ -46,6 +61,8 @@ def join(
     console.print(f"  Profile: [cyan]{profile}[/cyan]")
     console.print(f"  Vision:  [cyan]{'enabled' if vision else 'disabled'}[/cyan]")
     console.print(f"  Browser: [cyan]{config.browser}[/cyan]")
+    if system_profile:
+        console.print(f"  Profile: [cyan]system ({config.browser_data_dir})[/cyan]")
     console.print()
 
     orchestrator = MeetingOrchestrator(config)

@@ -36,10 +36,9 @@ class SpeechSynthesizer:
     ) -> None:
         import azure.cognitiveservices.speech as speechsdk
 
-        self._speech_config = speechsdk.SpeechConfig(
-            subscription=config.key,
-            region=config.region,
-        )
+        from teams_attendant.audio.speech_auth import build_speech_config
+
+        self._speech_config = build_speech_config(config)
         self._speech_config.set_speech_synthesis_output_format(
             speechsdk.SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm,
         )

@@ -63,7 +63,13 @@ def mock_speechsdk():
         stt_mod.speechsdk = sdk
         importlib.reload(stt_mod)
         stt_mod.speechsdk = sdk
-        yield sdk, stt_mod
+
+        # Patch build_speech_config so it returns the mock SpeechConfig
+        with patch(
+            "teams_attendant.audio.speech_auth.build_speech_config",
+            return_value=sdk.SpeechConfig.return_value,
+        ):
+            yield sdk, stt_mod
 
 
 @pytest.fixture()
@@ -101,7 +107,6 @@ class TestSpeechTranscriberInit:
         sdk, stt_mod = mock_speechsdk
         transcriber = stt_mod.SpeechTranscriber(speech_config, devices, event_bus)
 
-        sdk.SpeechConfig.assert_called_once_with(subscription="test-key", region="eastus")
         sdk.SpeechRecognizer.assert_called_once()
         assert transcriber._recognizer is not None
 

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import os
+import platform
 import shutil
 from pathlib import Path
 
 import structlog
 from playwright.async_api import BrowserContext, Playwright, async_playwright
 
-from teams_attendant.errors import AuthenticationError
+from teams_attendant.errors import AuthenticationError, BrowserProfileLockedError
 
 log = structlog.get_logger()
 
@@ -36,11 +37,46 @@ _EDGE_USER_AGENT = (
 )
 
 _STEALTH_JS = """
+// Hide webdriver property
 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+
+// Mock chrome.runtime to look like a real browser
+if (!window.chrome) { window.chrome = {}; }
+if (!window.chrome.runtime) {
+    window.chrome.runtime = {
+        connect: function() {},
+        sendMessage: function() {},
+    };
+}
+
+// Fix permissions query for notifications (automation detection)
+const originalQuery = window.navigator.permissions.query;
+window.navigator.permissions.query = (parameters) =>
+    parameters.name === 'notifications'
+        ? Promise.resolve({ state: Notification.permission })
+        : originalQuery(parameters);
+
+// Ensure navigator.plugins is non-empty
+Object.defineProperty(navigator, 'plugins', {
+    get: () => [1, 2, 3, 4, 5],
+});
+
+// Ensure navigator.languages returns a proper array
+Object.defineProperty(navigator, 'languages', {
+    get: () => ['en-US', 'en'],
+});
+
+// Remove automation-related properties from document
+delete Object.getPrototypeOf(navigator).webdriver;
 """
 
 _CHROMIUM_ARGS = [
     "--disable-blink-features=AutomationControlled",
+]
+
+# Playwright default args that reveal automation to bot detectors
+_IGNORE_DEFAULT_ARGS = [
+    "--enable-automation",
 ]
 
 
@@ -48,6 +84,65 @@ def _ensure_dir(path: Path) -> Path:
     """Ensure the directory exists, creating it if necessary."""
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def get_system_browser_profile(browser: str = "msedge") -> Path:
+    """Return the path to the system browser's user data directory.
+
+    Raises ``FileNotFoundError`` if the profile directory does not exist.
+
+    .. note:: The system browser must be **closed** before Playwright can
+       use its profile — Chromium locks the user-data directory.
+    """
+    system = platform.system()
+
+    if system == "Windows":
+        local_app_data = Path(os.environ.get("LOCALAPPDATA", ""))
+        paths = {
+            "msedge": local_app_data / "Microsoft" / "Edge" / "User Data",
+            "chromium": local_app_data / "Google" / "Chrome" / "User Data",
+        }
+    elif system == "Darwin":
+        support = Path.home() / "Library" / "Application Support"
+        paths = {
+            "msedge": support / "Microsoft Edge",
+            "chromium": support / "Google" / "Chrome",
+        }
+    else:  # Linux
+        config = Path.home() / ".config"
+        paths = {
+            "msedge": config / "microsoft-edge",
+            "chromium": config / "google-chrome",
+        }
+
+    profile_dir = paths.get(browser, paths.get("chromium", Path()))
+    if not profile_dir or not profile_dir.exists():
+        raise FileNotFoundError(
+            f"System browser profile not found at {profile_dir}. "
+            f"Is {browser} installed?"
+        )
+
+    log.info("browser.system_profile", path=str(profile_dir))
+    return profile_dir
+
+
+def _check_profile_lock(browser_data_dir: Path) -> None:
+    """Raise if the browser profile directory is locked by a running browser.
+
+    Chromium-based browsers create a ``SingletonLock`` (Linux/macOS) or
+    ``lockfile`` (Windows) inside the user-data directory.  If such a file
+    exists, another browser instance owns the profile and Playwright will
+    fail with ``TargetClosedError``.
+    """
+    lock_names = ("SingletonLock", "lockfile", "Lock")
+    for name in lock_names:
+        lock_path = browser_data_dir / name
+        if lock_path.exists():
+            raise BrowserProfileLockedError(
+                f"The browser profile at {browser_data_dir} is locked "
+                f"(found {name}). Close all browser windows using this "
+                "profile and try again."
+            )
 
 
 async def _create_persistent_context(
@@ -59,6 +154,7 @@ async def _create_persistent_context(
     browser: str = "chromium",
 ) -> BrowserContext:
     """Create a persistent browser context with stealth settings."""
+    _check_profile_lock(browser_data_dir)
     _ensure_dir(browser_data_dir)
 
     user_agent = _EDGE_USER_AGENT if browser == "msedge" else _CHROME_USER_AGENT
@@ -69,8 +165,9 @@ async def _create_persistent_context(
         user_agent=user_agent,
         viewport={"width": 1920, "height": 1080},
         locale="en-US",
-        permissions=[],
+        permissions=["microphone", "camera"],
         args=_CHROMIUM_ARGS,
+        ignore_default_args=_IGNORE_DEFAULT_ARGS,
     )
 
     if browser == "msedge":

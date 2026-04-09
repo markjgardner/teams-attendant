@@ -23,46 +23,49 @@ _SDK_PATH = "azure.cognitiveservices.speech"
 # ---------------------------------------------------------------------------
 
 
+_BUILD_AUTH = "teams_attendant.audio.speech_auth.build_speech_config"
+
+
 class TestSpeechSynthesizerInit:
-    @patch(f"{_SDK_PATH}.SpeechConfig")
-    def test_creates_speech_config(self, mock_cfg_cls: MagicMock):
+    @patch(_BUILD_AUTH)
+    def test_creates_speech_config(self, mock_build: MagicMock):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
         cfg = AzureSpeechConfig(key="test-key", region="westus")
         SpeechSynthesizer(cfg)
 
-        mock_cfg_cls.assert_called_once_with(subscription="test-key", region="westus")
+        mock_build.assert_called_once_with(cfg)
 
-    @patch(f"{_SDK_PATH}.SpeechConfig")
-    def test_sets_output_format(self, mock_cfg_cls: MagicMock):
+    @patch(_BUILD_AUTH)
+    def test_sets_output_format(self, mock_build: MagicMock):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
         cfg = AzureSpeechConfig(key="k", region="r")
         SpeechSynthesizer(cfg)
 
-        speech_config = mock_cfg_cls.return_value
+        speech_config = mock_build.return_value
         speech_config.set_speech_synthesis_output_format.assert_called_once_with(
             speechsdk.SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm,
         )
 
-    @patch(f"{_SDK_PATH}.SpeechConfig")
-    def test_default_voice(self, mock_cfg_cls: MagicMock):
+    @patch(_BUILD_AUTH)
+    def test_default_voice(self, mock_build: MagicMock):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
         cfg = AzureSpeechConfig(key="k", region="r")
         SpeechSynthesizer(cfg)
 
-        speech_config = mock_cfg_cls.return_value
+        speech_config = mock_build.return_value
         assert speech_config.speech_synthesis_voice_name == "en-US-JennyNeural"
 
-    @patch(f"{_SDK_PATH}.SpeechConfig")
-    def test_custom_voice(self, mock_cfg_cls: MagicMock):
+    @patch(_BUILD_AUTH)
+    def test_custom_voice(self, mock_build: MagicMock):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
         cfg = AzureSpeechConfig(key="k", region="r")
         SpeechSynthesizer(cfg, voice_name="en-US-GuyNeural")
 
-        speech_config = mock_cfg_cls.return_value
+        speech_config = mock_build.return_value
         assert speech_config.speech_synthesis_voice_name == "en-US-GuyNeural"
 
 
@@ -74,9 +77,9 @@ class TestSpeechSynthesizerInit:
 class TestSynthesize:
     @pytest.mark.asyncio
     @patch(f"{_SDK_PATH}.SpeechSynthesizer")
-    @patch(f"{_SDK_PATH}.SpeechConfig")
+    @patch(_BUILD_AUTH)
     async def test_returns_tts_result(
-        self, mock_cfg_cls: MagicMock, mock_synth_cls: MagicMock
+        self, mock_build: MagicMock, mock_synth_cls: MagicMock
     ):
         from teams_attendant.audio.tts import SpeechSynthesizer, TTSResult
 
@@ -97,9 +100,9 @@ class TestSynthesize:
 
     @pytest.mark.asyncio
     @patch(f"{_SDK_PATH}.SpeechSynthesizer")
-    @patch(f"{_SDK_PATH}.SpeechConfig")
+    @patch(_BUILD_AUTH)
     async def test_auth_error(
-        self, mock_cfg_cls: MagicMock, mock_synth_cls: MagicMock
+        self, mock_build: MagicMock, mock_synth_cls: MagicMock
     ):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
@@ -119,9 +122,9 @@ class TestSynthesize:
 
     @pytest.mark.asyncio
     @patch(f"{_SDK_PATH}.SpeechSynthesizer")
-    @patch(f"{_SDK_PATH}.SpeechConfig")
+    @patch(_BUILD_AUTH)
     async def test_connection_error(
-        self, mock_cfg_cls: MagicMock, mock_synth_cls: MagicMock
+        self, mock_build: MagicMock, mock_synth_cls: MagicMock
     ):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
@@ -148,9 +151,9 @@ class TestSynthesize:
 class TestSynthesizeSsml:
     @pytest.mark.asyncio
     @patch(f"{_SDK_PATH}.SpeechSynthesizer")
-    @patch(f"{_SDK_PATH}.SpeechConfig")
+    @patch(_BUILD_AUTH)
     async def test_returns_tts_result(
-        self, mock_cfg_cls: MagicMock, mock_synth_cls: MagicMock
+        self, mock_build: MagicMock, mock_synth_cls: MagicMock
     ):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
@@ -175,15 +178,15 @@ class TestSynthesizeSsml:
 
 
 class TestSetVoice:
-    @patch(f"{_SDK_PATH}.SpeechConfig")
-    def test_changes_voice(self, mock_cfg_cls: MagicMock):
+    @patch(_BUILD_AUTH)
+    def test_changes_voice(self, mock_build: MagicMock):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
         cfg = AzureSpeechConfig(key="k", region="r")
         synth = SpeechSynthesizer(cfg)
         synth.set_voice("en-GB-SoniaNeural")
 
-        speech_config = mock_cfg_cls.return_value
+        speech_config = mock_build.return_value
         assert speech_config.speech_synthesis_voice_name == "en-GB-SoniaNeural"
 
 
@@ -195,9 +198,9 @@ class TestSetVoice:
 class TestListVoices:
     @pytest.mark.asyncio
     @patch(f"{_SDK_PATH}.SpeechSynthesizer")
-    @patch(f"{_SDK_PATH}.SpeechConfig")
+    @patch(_BUILD_AUTH)
     async def test_returns_voice_list(
-        self, mock_cfg_cls: MagicMock, mock_synth_cls: MagicMock
+        self, mock_build: MagicMock, mock_synth_cls: MagicMock
     ):
         from teams_attendant.audio.tts import SpeechSynthesizer
 
@@ -232,9 +235,9 @@ class TestListVoices:
 class TestVoiceResponder:
     @pytest.mark.asyncio
     @patch(f"{_SDK_PATH}.SpeechSynthesizer")
-    @patch(f"{_SDK_PATH}.SpeechConfig")
+    @patch(_BUILD_AUTH)
     async def test_speak_synthesizes_and_plays(
-        self, mock_cfg_cls: MagicMock, mock_synth_cls: MagicMock
+        self, mock_build: MagicMock, mock_synth_cls: MagicMock
     ):
         from teams_attendant.audio.tts import SpeechSynthesizer, VoiceResponder
 
@@ -259,8 +262,8 @@ class TestVoiceResponder:
         await responder.speak("hello")
         assert responder.is_speaking is False
 
-    @patch(f"{_SDK_PATH}.SpeechConfig")
-    def test_is_speaking_delegates_to_player(self, mock_cfg_cls: MagicMock):
+    @patch(_BUILD_AUTH)
+    def test_is_speaking_delegates_to_player(self, mock_build: MagicMock):
         from teams_attendant.audio.tts import SpeechSynthesizer, VoiceResponder
 
         cfg = AzureSpeechConfig(key="k", region="r")

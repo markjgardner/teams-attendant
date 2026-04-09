@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -197,10 +198,18 @@ class TestValidation:
     def test_validate_for_meeting_all_missing(self) -> None:
         cfg = AppConfig()
         errors = cfg.validate_for_meeting()
-        # region defaults to "eastus", so 2 errors (speech key, foundry endpoint)
-        # api_key is optional (identity-based auth is the alternative)
+        # When azure-identity is installed, speech key is not required
+        # (identity-based auth can be used instead).
+        # Only foundry endpoint is required.
+        assert any("Foundry endpoint" in e for e in errors)
+
+    @patch.dict("sys.modules", {"azure.identity": None, "azure": MagicMock()})
+    def test_validate_for_meeting_all_missing_no_identity(self) -> None:
+        cfg = AppConfig()
+        errors = cfg.validate_for_meeting()
+        # Without azure-identity, speech key IS required
         assert len(errors) == 2
-        assert any("Speech key" in e for e in errors)
+        assert any("Speech key" in e or "azure-identity" in e for e in errors)
         assert any("Foundry endpoint" in e for e in errors)
 
     def test_validate_for_meeting_all_present(self) -> None:
@@ -294,21 +303,32 @@ class TestTranscriptSource:
         errors = cfg.validate_for_meeting()
         assert errors == []
 
+    @patch.dict("sys.modules", {"azure.identity": None, "azure": MagicMock()})
     def test_validate_audio_mode_requires_speech_creds(self) -> None:
         cfg = AppConfig(
             transcript_source="audio",
             azure={"speech": {"key": "", "region": "eastus"}, **_valid_foundry_creds()["azure"]},
         )
         errors = cfg.validate_for_meeting()
-        assert any("Speech key" in e for e in errors)
+        assert any("Speech key" in e or "azure-identity" in e for e in errors)
 
+    @patch.dict("sys.modules", {"azure.identity": None, "azure": MagicMock()})
     def test_validate_auto_mode_requires_speech_creds(self) -> None:
         cfg = AppConfig(
             transcript_source="auto",
             azure={"speech": {"key": "", "region": "eastus"}, **_valid_foundry_creds()["azure"]},
         )
         errors = cfg.validate_for_meeting()
-        assert any("Speech key" in e for e in errors)
+        assert any("Speech key" in e or "azure-identity" in e for e in errors)
+
+    def test_validate_audio_mode_identity_auth_ok(self) -> None:
+        """No speech key error when azure-identity is available."""
+        cfg = AppConfig(
+            transcript_source="audio",
+            azure={"speech": {"key": "", "region": "eastus"}, **_valid_foundry_creds()["azure"]},
+        )
+        errors = cfg.validate_for_meeting()
+        assert not any("Speech key" in e for e in errors)
 
     def test_load_config_with_transcript_source(self, tmp_path: Path) -> None:
         data = {"transcript_source": "ui"}

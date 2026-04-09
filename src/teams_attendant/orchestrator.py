@@ -204,7 +204,7 @@ class MeetingOrchestrator:
         browser_context = await get_authenticated_context(
             pw,
             browser_data_dir=self._config.browser_data_dir,
-            headless=True,
+            headless=False,
             audio_env=audio_env or None,
             browser=self._config.browser,
         )
