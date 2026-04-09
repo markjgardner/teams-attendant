@@ -2,6 +2,7 @@ azure:
   speech:
     key: "your-azure-speech-key"
     region: "eastus"
+    voice: "en-US-JennyNeural"  # Azure TTS voice name
   foundry:
     endpoint: "https://your-foundry.azure.com"
     api_key: "your-foundry-api-key"

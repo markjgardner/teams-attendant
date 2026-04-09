@@ -295,7 +295,10 @@ class MeetingOrchestrator:
                 devices=devices,
                 event_bus=self._session.event_bus,
             )
-            self._session.synthesizer = SpeechSynthesizer(config=self._config.azure.speech)
+            self._session.synthesizer = SpeechSynthesizer(
+                config=self._config.azure.speech,
+                voice_name=self._config.azure.speech.voice,
+            )
             self._session.player = AudioPlayer(devices=devices)
             self._session.voice_responder = VoiceResponder(
                 synthesizer=self._session.synthesizer,

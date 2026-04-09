@@ -36,6 +36,10 @@ class AzureSpeechConfig(BaseModel):
 
     key: str = ""
     region: str = "eastus"
+    voice: str = Field(
+        default="en-US-JennyNeural",
+        description="Azure TTS voice name (e.g. 'en-US-GuyNeural', 'en-GB-SoniaNeural')",
+    )
 
 
 class AzureFoundryConfig(BaseModel):
@@ -172,6 +176,7 @@ class AppConfig(BaseModel):
 _ENV_MAP: dict[tuple[str, ...], str] = {
     ("azure", "speech", "key"): "AZURE_SPEECH_KEY",
     ("azure", "speech", "region"): "AZURE_SPEECH_REGION",
+    ("azure", "speech", "voice"): "AZURE_SPEECH_VOICE",
     ("azure", "foundry", "endpoint"): "AZURE_FOUNDRY_ENDPOINT",
     ("azure", "foundry", "api_key"): "AZURE_FOUNDRY_API_KEY",
     ("azure", "foundry", "model_deployment"): "AZURE_FOUNDRY_MODEL",
