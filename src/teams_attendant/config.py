@@ -43,7 +43,11 @@ class AzureSpeechConfig(BaseModel):
 
 
 class AzureFoundryConfig(BaseModel):
-    """Azure Foundry configuration for LLM models (Claude or GPT)."""
+    """Azure Foundry configuration for LLM models (Claude or GPT).
+
+    When ``api_key`` is empty, identity-based authentication is used
+    via ``DefaultAzureCredential`` from the ``azure-identity`` package.
+    """
 
     endpoint: str = ""
     api_key: str = ""
@@ -143,11 +147,6 @@ class AppConfig(BaseModel):
             errors.append(
                 "Azure Foundry endpoint is required "
                 "(set azure.foundry.endpoint or AZURE_FOUNDRY_ENDPOINT)"
-            )
-        if not self.azure.foundry.api_key:
-            errors.append(
-                "Azure Foundry API key is required "
-                "(set azure.foundry.api_key or AZURE_FOUNDRY_API_KEY)"
             )
         return errors
 

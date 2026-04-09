@@ -197,11 +197,11 @@ class TestValidation:
     def test_validate_for_meeting_all_missing(self) -> None:
         cfg = AppConfig()
         errors = cfg.validate_for_meeting()
-        # region defaults to "eastus", so only 3 errors (key, endpoint, api_key)
-        assert len(errors) == 3
+        # region defaults to "eastus", so 2 errors (speech key, foundry endpoint)
+        # api_key is optional (identity-based auth is the alternative)
+        assert len(errors) == 2
         assert any("Speech key" in e for e in errors)
         assert any("Foundry endpoint" in e for e in errors)
-        assert any("Foundry API key" in e for e in errors)
 
     def test_validate_for_meeting_all_present(self) -> None:
         cfg = AppConfig(
@@ -337,14 +337,21 @@ class TestLLMProviderConfig:
         with pytest.raises(ValidationError):
             AppConfig(llm_provider="gemini")
 
-    def test_validate_anthropic_requires_foundry_creds(self) -> None:
+    def test_validate_anthropic_requires_foundry_endpoint(self) -> None:
         cfg = AppConfig(llm_provider="anthropic")
         errors = cfg.validate_for_meeting()
         assert any("Foundry endpoint" in e for e in errors)
-        assert any("Foundry API key" in e for e in errors)
 
-    def test_validate_openai_still_requires_foundry(self) -> None:
+    def test_validate_openai_requires_foundry_endpoint(self) -> None:
         cfg = AppConfig(llm_provider="openai")
         errors = cfg.validate_for_meeting()
         assert any("Foundry endpoint" in e for e in errors)
-        assert any("Foundry API key" in e for e in errors)
+
+    def test_validate_no_api_key_is_ok(self) -> None:
+        """API key is optional — identity-based auth is the alternative."""
+        cfg = AppConfig(
+            transcript_source="ui",
+            azure={"foundry": {"endpoint": "https://e.com"}},
+        )
+        errors = cfg.validate_for_meeting()
+        assert len(errors) == 0

@@ -113,11 +113,11 @@ class OpenAIClient:
     # -- request helpers ----------------------------------------------------
 
     def _build_headers(self) -> dict[str, str]:
-        return {
-            "api-key": self._config.api_key,
-            "Authorization": f"Bearer {self._config.api_key}",
-            "Content-Type": "application/json",
-        }
+        from teams_attendant.agent.foundry_auth import build_auth_headers
+
+        headers = build_auth_headers(self._config)
+        headers["Content-Type"] = "application/json"
+        return headers
 
     @property
     def _completions_url(self) -> str:

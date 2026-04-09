@@ -5,7 +5,7 @@ azure:
     voice: "en-US-JennyNeural"  # Azure TTS voice name
   foundry:
     endpoint: "https://your-foundry.azure.com"
-    api_key: "your-foundry-api-key"
+    # api_key: "your-foundry-api-key"  # Optional: omit to use identity-based auth
     model_deployment: "claude-sonnet"
 
 browser_data_dir: ".browser-data"

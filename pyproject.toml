@@ -16,6 +16,7 @@ dependencies = [
     "sounddevice",
     "numpy",
     "azure-cognitiveservices-speech",
+    "azure-identity",
     "anthropic",
     "httpx",
     "rich",

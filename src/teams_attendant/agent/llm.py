@@ -169,12 +169,12 @@ class AnthropicClient:
     # -- request helpers ----------------------------------------------------
 
     def _build_headers(self) -> dict[str, str]:
-        return {
-            "api-key": self._config.api_key,
-            "Authorization": f"Bearer {self._config.api_key}",
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        }
+        from teams_attendant.agent.foundry_auth import build_auth_headers
+
+        headers = build_auth_headers(self._config)
+        headers["anthropic-version"] = "2023-06-01"
+        headers["Content-Type"] = "application/json"
+        return headers
 
     @property
     def _messages_url(self) -> str:
