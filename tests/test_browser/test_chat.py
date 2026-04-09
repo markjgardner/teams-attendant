@@ -9,8 +9,9 @@ from unittest.mock import AsyncMock, MagicMock
 from teams_attendant.browser.chat import (
     ChatMessage,
     ChatObserver,
-    _SEL_MESSAGE_AUTHOR,
-    _SEL_MESSAGE_BODY,
+    _SEL_CHAT_BUTTON,
+    _SEL_CHAT_INPUT,
+    _SEL_CHAT_PANEL,
 )
 from teams_attendant.utils.events import Event, EventBus
 
@@ -21,9 +22,10 @@ from teams_attendant.utils.events import Event, EventBus
 
 
 def _make_element(*, inner_text: str = "") -> AsyncMock:
-    """Build a mock Playwright ElementHandle."""
+    """Build a mock that works as both Playwright ElementHandle and Locator."""
     el = AsyncMock()
     el.click = AsyncMock()
+    el.wait_for = AsyncMock()
     el.inner_text = AsyncMock(return_value=inner_text)
     el.query_selector = AsyncMock(return_value=None)
     return el
@@ -37,9 +39,9 @@ def _make_message_element(author: str = "Alice", text: str = "hello") -> AsyncMo
     body_el = _make_element(inner_text=text)
 
     async def _query_selector(selector: str) -> AsyncMock | None:
-        if _SEL_MESSAGE_AUTHOR in selector or "author" in selector:
+        if "author" in selector:
             return author_el
-        if _SEL_MESSAGE_BODY in selector or "body" in selector:
+        if "message-content" in selector or "body" in selector:
             return body_el
         return None
 
@@ -59,6 +61,13 @@ def _make_page() -> AsyncMock:
     page.keyboard = AsyncMock()
     page.keyboard.type = AsyncMock()
     page.keyboard.press = AsyncMock()
+
+    def _make_locator(selector: str) -> MagicMock:
+        loc = MagicMock()
+        loc.first = _make_element()
+        return loc
+
+    page.locator = MagicMock(side_effect=_make_locator)
     return page
 
 
@@ -121,54 +130,65 @@ class TestOpenChatPanel:
     async def test_already_open(self) -> None:
         """Should not click chat button if panel is already visible."""
         page = _make_page()
-        panel_el = _make_element()
-        page.wait_for_selector = AsyncMock(return_value=panel_el)
         bus = _make_event_bus()
         obs = ChatObserver(page, bus)
 
         await obs._open_chat_panel()
 
-        # wait_for_selector called for panel check; button should NOT be clicked
-        page.wait_for_selector.assert_awaited_once()
+        # locator called once for panel check; button locator never created
+        assert page.locator.call_count == 1
+        page.locator.assert_called_with(_SEL_CHAT_PANEL)
 
     async def test_clicks_chat_button_when_closed(self) -> None:
         """Should click chat button and wait for panel when panel not visible."""
         from playwright.async_api import TimeoutError as PlaywrightTimeout
 
         page = _make_page()
-        chat_btn = _make_element()
-        panel_el = _make_element()
+        chat_btn_mock = AsyncMock()
+        chat_btn_mock.click = AsyncMock()
 
-        call_count = 0
+        panel_call_count = 0
 
-        async def _selector_router(selector: str, **kwargs: object) -> AsyncMock:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                # First call: checking if panel is open → not found
-                raise PlaywrightTimeout("timeout")
-            if call_count == 2:
-                # Second call: finding chat button
-                return chat_btn
-            # Third call: waiting for panel after click
-            return panel_el
+        def _locator_router(selector: str) -> MagicMock:
+            nonlocal panel_call_count
+            loc = MagicMock()
+            if selector == _SEL_CHAT_BUTTON:
+                loc.first = chat_btn_mock
+            else:
+                panel_call_count += 1
+                first = AsyncMock()
+                if panel_call_count == 1:
+                    first.wait_for = AsyncMock(
+                        side_effect=PlaywrightTimeout("timeout")
+                    )
+                else:
+                    first.wait_for = AsyncMock()
+                loc.first = first
+            return loc
 
-        page.wait_for_selector = AsyncMock(side_effect=_selector_router)
+        page.locator = MagicMock(side_effect=_locator_router)
         bus = _make_event_bus()
         obs = ChatObserver(page, bus)
 
         await obs._open_chat_panel()
 
-        chat_btn.click.assert_awaited_once()
+        chat_btn_mock.click.assert_awaited_once()
 
     async def test_error_when_button_not_found(self) -> None:
         """Should log error but not raise when chat button is not found."""
         from playwright.async_api import TimeoutError as PlaywrightTimeout
 
         page = _make_page()
-        page.wait_for_selector = AsyncMock(
-            side_effect=PlaywrightTimeout("timeout")
-        )
+
+        def _locator_router(selector: str) -> MagicMock:
+            loc = MagicMock()
+            first = AsyncMock()
+            first.wait_for = AsyncMock(side_effect=PlaywrightTimeout("timeout"))
+            first.click = AsyncMock(side_effect=PlaywrightTimeout("timeout"))
+            loc.first = first
+            return loc
+
+        page.locator = MagicMock(side_effect=_locator_router)
         bus = _make_event_bus()
         obs = ChatObserver(page, bus)
 
@@ -407,23 +427,45 @@ class TestSendMessage:
     async def test_send_focuses_types_and_enters(self) -> None:
         """send_message should click input, type text, and press Enter."""
         page = _make_page()
-        input_el = _make_element()
+        input_mock = AsyncMock()
+        input_mock.click = AsyncMock()
 
-        page.wait_for_selector = AsyncMock(return_value=input_el)
+        def _locator_router(selector: str) -> MagicMock:
+            loc = MagicMock()
+            if selector == _SEL_CHAT_INPUT:
+                loc.first = input_mock
+            else:
+                loc.first = _make_element()
+            return loc
+
+        page.locator = MagicMock(side_effect=_locator_router)
         bus = _make_event_bus()
         obs = ChatObserver(page, bus)
 
         await obs.send_message("Hello world")
 
-        input_el.click.assert_awaited()
+        input_mock.click.assert_awaited()
         page.keyboard.type.assert_awaited_once_with("Hello world", delay=30)
         page.keyboard.press.assert_awaited_once_with("Enter")
 
     async def test_send_handles_missing_input(self) -> None:
         """send_message should not raise when input box is not found."""
-        page = _make_page()
-        page.wait_for_selector = AsyncMock(return_value=None)
+        from playwright.async_api import TimeoutError as PlaywrightTimeout
 
+        page = _make_page()
+
+        def _locator_router(selector: str) -> MagicMock:
+            loc = MagicMock()
+            first = AsyncMock()
+            if selector == _SEL_CHAT_INPUT:
+                first.click = AsyncMock(side_effect=PlaywrightTimeout("timeout"))
+            else:
+                first.click = AsyncMock()
+                first.wait_for = AsyncMock()
+            loc.first = first
+            return loc
+
+        page.locator = MagicMock(side_effect=_locator_router)
         bus = _make_event_bus()
         obs = ChatObserver(page, bus)
 
@@ -431,24 +473,21 @@ class TestSendMessage:
         await obs.send_message("Hello")
 
     async def test_send_handles_timeout(self) -> None:
-        """send_message should not raise on PlaywrightTimeout."""
-        from playwright.async_api import TimeoutError as PlaywrightTimeout
-
+        """send_message should not raise on generic error."""
         page = _make_page()
 
-        call_count = 0
+        def _locator_router(selector: str) -> MagicMock:
+            loc = MagicMock()
+            first = AsyncMock()
+            if selector == _SEL_CHAT_INPUT:
+                first.click = AsyncMock(side_effect=Exception("some error"))
+            else:
+                first.click = AsyncMock()
+                first.wait_for = AsyncMock()
+            loc.first = first
+            return loc
 
-        async def _selector_router(selector: str, **kwargs: object) -> AsyncMock:
-            nonlocal call_count
-            call_count += 1
-            # First call is _open_chat_panel panel check
-            if call_count == 1:
-                return _make_element()
-            # Second call is finding the input
-            raise PlaywrightTimeout("timeout")
-
-        page.wait_for_selector = AsyncMock(side_effect=_selector_router)
-
+        page.locator = MagicMock(side_effect=_locator_router)
         bus = _make_event_bus()
         obs = ChatObserver(page, bus)
 

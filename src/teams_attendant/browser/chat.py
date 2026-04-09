@@ -22,38 +22,39 @@ log = structlog.get_logger()
 # ---------------------------------------------------------------------------
 
 _SEL_CHAT_BUTTON = (
-    "[data-tid='chat-button'],"
-    "button[aria-label*='Chat'],"
-    "button:has-text('Chat')"
+    "[data-tid='app-layout-area--header'] #chat-button,"
+    "[data-tid='app-layout-area--header'] [data-inp='chat-button'],"
+    "[data-track-action-scenario='callShowConversation'],"
+    "#chat-button[data-inp='chat-button'],"
+    "[data-tid='chat-button']"
 )
 
 _SEL_CHAT_PANEL = (
+    "[data-tid='message-pane-list-viewport'],"
+    "#chat-pane-list,"
+    "[data-tid='message-pane-list-runway'],"
     "[data-tid='chat-pane'],"
-    "[data-tid='chat-pane-list'],"
-    "[class*='chat-pane'],"
-    "[role='log']"
+    "[data-tid='chat-pane-list']"
 )
 
 _SEL_MESSAGE_CONTAINER = (
-    "[data-tid='chat-pane-message'],"
-    "[class*='message']"
+    "[data-tid='chat-pane-message']"
 )
 
 _SEL_MESSAGE_AUTHOR = (
-    "[data-tid='message-author'],"
-    "[class*='sender'],"
-    "[class*='author']"
+    "[data-tid='message-author-name'],"
+    "[data-tid='message-author']"
 )
 
 _SEL_MESSAGE_BODY = (
-    "[data-tid='message-body'],"
-    "[class*='message-body'],"
-    "[class*='message-text']"
+    "[data-message-content]"
 )
 
 _SEL_CHAT_INPUT = (
     "[data-tid='chat-pane-compose-input'],"
-    "[aria-label*='Type a message'],"
+    "[data-tid='meeting-chat-input'],"
+    "[aria-label*='Type a message' i],"
+    "[aria-label*='compose' i],"
     "div[contenteditable='true']"
 )
 
@@ -117,14 +118,8 @@ class ChatObserver:
         await self._open_chat_panel()
 
         try:
-            input_el = await self._page.wait_for_selector(
-                _SEL_CHAT_INPUT, timeout=5_000, state="visible"
-            )
-            if input_el is None:
-                log.error("chat.send.input_not_found")
-                return
-
-            await input_el.click()
+            input_loc = self._page.locator(_SEL_CHAT_INPUT).first
+            await input_loc.click(timeout=5_000)
             await self._page.keyboard.type(text, delay=30)
             await self._page.keyboard.press("Enter")
             log.info("chat.send.done", text=text[:80])
@@ -144,29 +139,52 @@ class ChatObserver:
 
         # Check if already open
         try:
-            panel = await self._page.wait_for_selector(
-                _SEL_CHAT_PANEL, timeout=1_000, state="visible"
+            await self._page.locator(_SEL_CHAT_PANEL).first.wait_for(
+                state="visible", timeout=1_000
             )
-            if panel:
-                log.debug("chat.panel.already_open")
-                return
+            log.debug("chat.panel.already_open")
+            return
         except PlaywrightTimeout:
             pass
 
         # Click the chat button to open
         try:
-            btn = await self._page.wait_for_selector(
-                _SEL_CHAT_BUTTON, timeout=5_000, state="visible"
+            await self._page.locator(_SEL_CHAT_BUTTON).first.click(timeout=5_000)
+            log.info("chat.panel.opened")
+            # Wait for the panel to appear
+            await self._page.locator(_SEL_CHAT_PANEL).first.wait_for(
+                state="visible", timeout=5_000
             )
-            if btn:
-                await btn.click()
-                log.info("chat.panel.opened")
-                # Wait for the panel to appear
-                await self._page.wait_for_selector(
-                    _SEL_CHAT_PANEL, timeout=5_000, state="visible"
-                )
         except PlaywrightTimeout:
+            await self._dump_toolbar_buttons()
             log.error("chat.panel.open_failed", detail="Chat button or panel not found")
+
+    async def _dump_toolbar_buttons(self) -> None:
+        """Log attributes of visible toolbar buttons for diagnostic purposes."""
+        try:
+            buttons = await self._page.query_selector_all("button")
+            for i, btn in enumerate(buttons):
+                visible = await btn.is_visible()
+                if not visible:
+                    continue
+                attrs = {}
+                for attr in ("data-tid", "data-cid", "id", "aria-label", "title", "class"):
+                    val = await btn.get_attribute(attr)
+                    if val:
+                        attrs[attr] = val[:120]
+                text = ""
+                try:
+                    text = (await btn.inner_text()).strip()[:60]
+                except Exception:
+                    pass
+                log.debug(
+                    "chat.diag.button",
+                    index=i,
+                    text=text or "(empty)",
+                    **attrs,
+                )
+        except Exception as exc:
+            log.debug("chat.diag.error", error=str(exc))
 
     async def _poll_messages(self) -> None:
         """Polling loop for new messages."""

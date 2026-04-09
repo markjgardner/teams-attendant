@@ -23,6 +23,10 @@ def join(
     vision: bool = typer.Option(False, "--vision", "-v", help="Enable vision mode"),
     user_name: str = typer.Option("", "--name", "-n", help="Your display name (for address detection)"),
     log_level: str = typer.Option("INFO", "--log-level", "-l", help="Log level"),
+    log_file: str = typer.Option(
+        "logs/teams-attendant.log", "--log-file",
+        help="Path to log file (JSON). Set to '' to disable file logging.",
+    ),
     browser: str = typer.Option("", "--browser", "-b", help="Browser: chromium (default) or msedge"),
     system_profile: bool = typer.Option(
         False, "--system-profile", "-s",
@@ -34,7 +38,7 @@ def join(
     from teams_attendant.orchestrator import MeetingOrchestrator
     from teams_attendant.utils.logging import setup_logging
 
-    setup_logging(level=log_level)
+    setup_logging(level=log_level, log_file=log_file or None)
 
     config = load_app_config()
 

@@ -311,13 +311,12 @@ class MeetingController:
         """Click the first matching element if it appears within *timeout_ms*.
 
         Returns ``True`` if an element was clicked, ``False`` otherwise.
+        Uses the Locator API to avoid stale ElementHandle references.
         """
         try:
-            el = await page.wait_for_selector(selector, timeout=timeout_ms, state="visible")
-            if el:
-                await el.click()
-                log.debug("meeting._click_if_visible.clicked", selector=selector)
-                return True
+            await page.locator(selector).first.click(timeout=timeout_ms)
+            log.debug("meeting._click_if_visible.clicked", selector=selector)
+            return True
         except PlaywrightTimeout:
             log.debug("meeting._click_if_visible.not_found", selector=selector)
         return False
@@ -329,10 +328,11 @@ class MeetingController:
         *,
         timeout_ms: int = 10_000,
     ) -> None:
-        """Wait for the first matching element and click it."""
-        el = await page.wait_for_selector(selector, timeout=timeout_ms, state="visible")
-        if el:
-            await el.click()
+        """Wait for the first matching element and click it.
+
+        Uses the Locator API to avoid stale ElementHandle references.
+        """
+        await page.locator(selector).first.click(timeout=timeout_ms)
 
     async def _wait_for_any(
         self,
@@ -374,30 +374,30 @@ class MeetingController:
     async def _ensure_camera_off(self, page: Page) -> None:
         """Toggle camera off if it is currently on."""
         try:
-            el = await page.wait_for_selector(_SEL_CAMERA_TOGGLE, timeout=5_000, state="visible")
-            if el:
-                is_on = await self._is_device_on(el)
+            loc = page.locator(_SEL_CAMERA_TOGGLE).first
+            await loc.wait_for(state="visible", timeout=5_000)
+            is_on = await self._is_device_on(loc)
 
-                if is_on:
-                    await el.click()
-                    log.info("meeting.camera.toggled_off")
-                else:
-                    log.info("meeting.camera.already_off")
+            if is_on:
+                await loc.click()
+                log.info("meeting.camera.toggled_off")
+            else:
+                log.info("meeting.camera.already_off")
         except PlaywrightTimeout:
             log.warning("meeting.camera.toggle_not_found")
 
     async def _ensure_mic_on(self, page: Page) -> None:
         """Toggle microphone on if it is currently muted."""
         try:
-            el = await page.wait_for_selector(_SEL_MIC_TOGGLE, timeout=5_000, state="visible")
-            if el:
-                is_on = await self._is_device_on(el)
+            loc = page.locator(_SEL_MIC_TOGGLE).first
+            await loc.wait_for(state="visible", timeout=5_000)
+            is_on = await self._is_device_on(loc)
 
-                if not is_on:
-                    await el.click()
-                    log.info("meeting.mic.toggled_on")
-                else:
-                    log.info("meeting.mic.already_on")
+            if not is_on:
+                await loc.click()
+                log.info("meeting.mic.toggled_on")
+            else:
+                log.info("meeting.mic.already_on")
         except PlaywrightTimeout:
             log.warning("meeting.mic.toggle_not_found")
 

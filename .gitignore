@@ -34,3 +34,4 @@ htmlcov/
 summaries/*.md
 .browser-data/
 config/default.yaml
+logs/

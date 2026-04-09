@@ -14,6 +14,7 @@ from teams_attendant.browser.meeting import (
     _SEL_IN_MEETING,
     _SEL_JOIN_BUTTON,
     _SEL_MEETING_ENDED,
+    _SEL_MIC_TOGGLE,
     _SEL_WAITING_ROOM,
 )
 
@@ -29,9 +30,10 @@ def _make_element(
     aria_pressed: str | None = None,
     inner_text: str = "",
 ) -> AsyncMock:
-    """Build a mock Playwright ElementHandle."""
+    """Build a mock that works as both Playwright ElementHandle and Locator."""
     el = AsyncMock()
     el.click = AsyncMock()
+    el.wait_for = AsyncMock()
 
     async def _get_attr(name: str) -> str | None:
         if name == "aria-checked":
@@ -59,8 +61,7 @@ def _make_page(*, is_closed: bool = False) -> AsyncMock:
     # locator() is synchronous in Playwright; returns a Locator with .first
     def _make_locator(selector: str) -> MagicMock:
         loc = MagicMock()
-        loc.first = MagicMock()
-        loc.first.wait_for = AsyncMock()
+        loc.first = _make_element()
         return loc
 
     page.locator = MagicMock(side_effect=_make_locator)
@@ -104,25 +105,19 @@ async def test_join_toggles_camera_off_when_on() -> None:
     """join() should click camera toggle when camera is on."""
     camera_el = _make_element(aria_checked="true")
     mic_el = _make_element(aria_checked="true")  # mic already on
-    join_el = _make_element()
-    other_el = _make_element()
 
-    call_count = 0
-
-    async def _selector_router(selector: str, **kwargs: object) -> AsyncMock:
-        nonlocal call_count
-        if _SEL_CAMERA_TOGGLE in selector or selector in _SEL_CAMERA_TOGGLE.split(","):
-            return camera_el
-        if selector == _SEL_JOIN_BUTTON or _SEL_JOIN_BUTTON in selector:
-            return join_el
-        for s in selector.split(","):
-            s = s.strip()
-            if "mute" in s or "microphone" in s or "toggle-mute" in s or "audio" in s:
-                return mic_el
-        return other_el
+    def _locator_router(selector: str) -> MagicMock:
+        loc = MagicMock()
+        if selector == _SEL_CAMERA_TOGGLE:
+            loc.first = camera_el
+        elif selector == _SEL_MIC_TOGGLE:
+            loc.first = mic_el
+        else:
+            loc.first = _make_element()
+        return loc
 
     page = _make_page()
-    page.wait_for_selector = AsyncMock(side_effect=_selector_router)
+    page.locator = MagicMock(side_effect=_locator_router)
     ctx = _make_context(page)
     ctrl = MeetingController(ctx)
 
@@ -136,22 +131,19 @@ async def test_join_toggles_mic_on_when_muted() -> None:
     """join() should click mic toggle when mic is muted."""
     camera_el = _make_element(aria_checked="false")  # camera already off
     mic_el = _make_element(aria_checked="false")  # mic muted → needs click
-    join_el = _make_element()
-    other_el = _make_element()
 
-    async def _selector_router(selector: str, **kwargs: object) -> AsyncMock:
-        if _SEL_CAMERA_TOGGLE in selector or selector in _SEL_CAMERA_TOGGLE.split(","):
-            return camera_el
-        for s in selector.split(","):
-            s = s.strip()
-            if "mute" in s or "microphone" in s or "toggle-mute" in s or "audio" in s:
-                return mic_el
-        if _SEL_JOIN_BUTTON in selector or selector in _SEL_JOIN_BUTTON.split(","):
-            return join_el
-        return other_el
+    def _locator_router(selector: str) -> MagicMock:
+        loc = MagicMock()
+        if selector == _SEL_CAMERA_TOGGLE:
+            loc.first = camera_el
+        elif selector == _SEL_MIC_TOGGLE:
+            loc.first = mic_el
+        else:
+            loc.first = _make_element()
+        return loc
 
     page = _make_page()
-    page.wait_for_selector = AsyncMock(side_effect=_selector_router)
+    page.locator = MagicMock(side_effect=_locator_router)
     ctx = _make_context(page)
     ctrl = MeetingController(ctx)
 
@@ -169,15 +161,17 @@ async def test_join_toggles_mic_on_when_muted() -> None:
 async def test_join_clicks_join_button() -> None:
     """join() should click the 'Join now' button."""
     join_el = _make_element()
-    other_el = _make_element()
 
-    async def _selector_router(selector: str, **kwargs: object) -> AsyncMock:
-        if _SEL_JOIN_BUTTON in selector or "Join now" in selector:
-            return join_el
-        return other_el
+    def _locator_router(selector: str) -> MagicMock:
+        loc = MagicMock()
+        if selector == _SEL_JOIN_BUTTON:
+            loc.first = join_el
+        else:
+            loc.first = _make_element()
+        return loc
 
     page = _make_page()
-    page.wait_for_selector = AsyncMock(side_effect=_selector_router)
+    page.locator = MagicMock(side_effect=_locator_router)
     ctx = _make_context(page)
     ctrl = MeetingController(ctx)
 
@@ -212,8 +206,14 @@ async def test_join_stores_page() -> None:
 async def test_leave_clicks_leave_and_closes_page() -> None:
     """leave() should click the leave button and close the page."""
     leave_el = _make_element()
+
+    def _locator_router(selector: str) -> MagicMock:
+        loc = MagicMock()
+        loc.first = leave_el
+        return loc
+
     page = _make_page()
-    page.wait_for_selector = AsyncMock(return_value=leave_el)
+    page.locator = MagicMock(side_effect=_locator_router)
     ctx = _make_context(page)
 
     ctrl = MeetingController(ctx)
